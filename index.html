@@ -68,6 +68,7 @@
     display: grid; grid-auto-flow: column; gap: 5px; place-content: center; padding: 0; cursor: pointer;
   }
   #btn-pause i { width: 6px; height: 18px; background: var(--ink); border-radius: 2px; }
+  #score, #combo, #judge, #milestone, #count { will-change: transform, opacity; }
   #combo { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 66px); text-align: center; font: 400 46px/1 var(--font-display); color: var(--sun); }
   #combo small { font: 700 14px var(--font-body); margin-left: 6px; color: var(--paper); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
   #judge { position: absolute; left: 0; right: 0; top: 27%; text-align: center; font: 400 40px/1 var(--font-display); opacity: 0; }
@@ -267,10 +268,9 @@ const mulberry32 = (a) => () => {
 
 const C = { ink: '#12143a', paper: '#fff6e6', tomato: '#ff5a3c', sun: '#ffc82e', mint: '#38d9a9', cobalt: '#4d6bff', dust: '#8c90bd' };
 const COLS3 = [C.tomato, C.sun, C.cobalt];
-const COLS4 = [C.tomato, C.sun, C.mint, C.cobalt];
 
 // 空間の設定: ノーツは正面 ZHIT メートル先の「パッド」に向かって飛んできます
-const ZHIT = 2.2, ZFAR = 34, NOTE_R = 0.3, VFOV = 68;
+const ZHIT = 2.2, ZFAR = 32, NOTE_R = 0.2, VFOV = 76;
 const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
@@ -299,9 +299,9 @@ const SONGS = [
     ],
     drums: { kick: [0, 4, 8, 12], snare: [4, 12], hat: [2, 6, 10, 14], open: [] },
     bass: [0, 8],
-    cols: [-16, 0, 16], rows: [15],
-    approach: 2.3, win: 0.20, pw: 0.09, pdeg: 7, gdeg: 12.5,
-    seed: 7, stay: 0.35, jump: 0,
+    ringR: 16,
+    approach: 3.0, win: 0.20, pw: 0.09, pdeg: 5, gdeg: 8.5,
+    seed: 7, stay: 0.3, turn: 0.15, jump: 0, jumpMax: 2,
   },
   {
     id: 'neon', title: 'ネオンのよる', level: 'ふつう', tint: 'sun',
@@ -315,9 +315,9 @@ const SONGS = [
     ],
     drums: { kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], open: [14] },
     bass: [0, 6, 8, 14],
-    cols: [-22, 0, 22], rows: [-16, 14],
-    approach: 2.0, win: 0.16, pw: 0.07, pdeg: 5.5, gdeg: 10.5,
-    seed: 23, stay: 0.25, jump: 0,
+    ringR: 15.5,
+    approach: 2.6, win: 0.16, pw: 0.07, pdeg: 4.3, gdeg: 7.5,
+    seed: 23, stay: 0.2, turn: 0.25, jump: 0.15, jumpMax: 2,
   },
   {
     id: 'storm', title: 'ビートストーム', level: 'むずかしい', tint: 'tomato',
@@ -331,18 +331,24 @@ const SONGS = [
     ],
     drums: { kick: [0, 4, 8, 10, 12], snare: [4, 12], hat: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], open: [6, 14] },
     bass: [0, 3, 6, 8, 11, 14, 15],
-    cols: [-30, -10, 10, 30], rows: [-16, 6, 20],
-    approach: 1.7, win: 0.13, pw: 0.06, pdeg: 4.5, gdeg: 9,
-    seed: 41, stay: 0.3, jump: 0.2,
+    ringR: 15,
+    approach: 2.2, win: 0.13, pw: 0.06, pdeg: 3.5, gdeg: 6.5,
+    seed: 41, stay: 0.2, turn: 0.3, jump: 0.3, jumpMax: 3,
   },
 ];
+
+// 9つのパッドは、正面を中心にした円の上に等間隔で並びます（真上から時計回りに番号をふる）
+const PADS = 9;
+function padAngles(R, i) {
+  const a = rad(i * 360 / PADS);
+  return { yaw: R * Math.sin(a), pitch: R * Math.cos(a) };
+}
 
 function buildMap(song) {
   const step = 60 / song.bpm / 4;
   const rnd = mulberry32(song.seed);
-  const colColors = song.cols.length === 4 ? COLS4 : COLS3;
   const notes = [];
-  let col = Math.floor((song.cols.length - 1) / 2), prev = null;
+  let pos = 0, dir = 1, prev = null;
   for (let i = 0; i < song.arrangement.length; i++) {
     const bar = song.melodyFrom + i;
     const pat = song.patterns[song.arrangement[i]];
@@ -350,24 +356,20 @@ function buildMap(song) {
     for (let s = 0; s < 16; s++) {
       const idx = pat[s];
       if (idx < 0) continue;
-      const g = bar * 16 + s, time = g * step, nr = song.rows.length;
-      let c = col;
-      let r = nr === 1 ? 0 : nr === 2 ? (idx < 3 ? 0 : 1) : (idx < 2 ? 0 : idx < 4 ? 1 : 2);
+      const g = bar * 16 + s, time = g * step;
       if (prev && time - prev.time < 0.16) {
-        c = prev.col; r = prev.row;            // 16分の連打は同じ場所
+        pos = prev.pad;                        // 16分の連打は同じ場所
       } else if (rnd() >= song.stay) {
         const gap = prev ? time - prev.time : 9;
+        if (rnd() < song.turn) dir = -dir;     // ときどき回る向きを変える
         const far = gap >= 0.3 && rnd() < song.jump;
-        const mv = (rnd() < 0.5 ? -1 : 1) * (far ? 2 : 1);
-        let nc = c + mv;
-        if (nc < 0 || nc >= song.cols.length) nc = c - mv;
-        c = clamp(nc, 0, song.cols.length - 1);
+        const mv = far ? (song.jumpMax > 2 && rnd() < 0.5 ? 3 : 2) : 1;
+        pos = (pos + dir * mv + PADS * 4) % PADS;
       }
-      col = c;
-      const yaw = song.cols[c], pitch = song.rows[r];
+      const { yaw, pitch } = padAngles(song.ringR, pos);
       const tx = Math.tan(rad(yaw)) * ZHIT, ty = Math.tan(rad(pitch)) * ZHIT;
       const L = Math.hypot(tx, ty, ZHIT);
-      const n = { g, time, freq: midiF(chord.tones[idx]), col: c, row: r, yaw, pitch, color: colColors[c],
+      const n = { g, time, freq: midiF(chord.tones[idx]), pad: pos, yaw, pitch, color: COLS3[pos % 3],
                   tx, ty, dir: [tx / L, ty / L, ZHIT / L], state: 0, best: 999, endT: 0 };
       notes.push(n);
       prev = n;
@@ -691,7 +693,7 @@ function openReady(song) {
   const tag = $('#ready-tag'); tag.textContent = song.level; tag.className = 'tag ' + song.tint;
   $('#ready-title').textContent = song.title;
   $('#ready-text').textContent = S.mode === 'gyro'
-    ? 'いちばん遊びやすい向きにスマホを構えて、下のボタンを押してください。押した向きが「正面」になります。画面の中央の輪をノーツに重ねて受け止めます。'
+    ? 'いちばん遊びやすい向きにスマホを構えて、下のボタンを押してください。押した向きが「正面」になります。ノーツは、正面を中心にした円の上の9か所に飛んできます。画面の中央の輪をノーツに重ねて受け止めます。'
     : '画面をドラッグして、中央の輪をノーツに重ねて受け止めます。矢印キーでも動かせます。';
   show('screen-ready');
 }
@@ -706,8 +708,14 @@ function startRun() {
   const step = 60 / song.bpm / 4;
   const notes = buildMap(song);
   const leadMap = new Map(notes.map((n) => [n.g, n.freq]));
-  const seen = new Map();
-  notes.forEach((n) => { const k = n.col + ',' + n.row; if (!seen.has(k)) seen.set(k, { key: k, tx: n.tx, ty: n.ty, color: n.color }); });
+  const pads = Array.from({ length: PADS }, (_, i) => {
+    const a = padAngles(song.ringR, i);
+    return { key: i, tx: Math.tan(rad(a.yaw)) * ZHIT, ty: Math.tan(rad(a.pitch)) * ZHIT, color: COLS3[i % 3] };
+  });
+  const ring = Array.from({ length: 72 }, (_, i) => {
+    const p = rad(i * 5);
+    return [Math.tan(rad(song.ringR * Math.sin(p))) * ZHIT, Math.tan(rad(song.ringR * Math.cos(p))) * ZHIT];
+  });
   const b = buildBus(step);
   out = b.bus; fxIn = b.fx;
   const t0 = ac.currentTime + 0.4;
@@ -715,7 +723,7 @@ function startRun() {
   b.bus.gain.setValueAtTime(0.85, ac.currentTime);
   b.bus.gain.setValueAtTime(0.85, t0 + totalDur - 2.2);
   b.bus.gain.linearRampToValueAtTime(0.0001, t0 + totalDur - 0.1);
-  G.run = { song, step, beat: step * 4, t0, next: 0, totalSteps: song.bars * 16, totalDur, approach: song.approach, leadMap, pads: [...seen.values()], bus: b.bus };
+  G.run = { song, step, beat: step * 4, t0, next: 0, totalSteps: song.bars * 16, totalDur, approach: song.approach, leadMap, pads, ring, bus: b.bus };
   G.notes = notes;
   G.score = 0; G.combo = 0; G.maxCombo = 0; G.counts = { perfect: 0, great: 0, miss: 0 };
   G.particles = []; G.flash = null; G.edge = null; G.shake = null; G.lastBeat = -1;
@@ -812,7 +820,7 @@ function burst(n, big, mega) {
   if (cv[2] <= 0.1) return;
   const x = view.W / 2 + view.f * cv[0] / cv[2], y = view.H / 2 - view.f * cv[1] / cv[2];
   const cols = [n.color, C.paper, C.sun];
-  const cnt = mega ? 46 : big ? 32 : 18;
+  const cnt = mega ? 34 : big ? 24 : 14;
   for (let i = 0; i < cnt; i++) {
     const a = Math.random() * TAU, sp = 140 + Math.random() * (big ? 380 : 260);
     G.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.6, max: 0.6, r: 4 + Math.random() * (big ? 7 : 5), color: cols[i % 3] });
@@ -825,6 +833,7 @@ function burst(n, big, mega) {
 function hit(n, kind, t) {
   const perfect = kind === 'perfect';
   n.state = 1; n.endT = t;
+  n.hitZ = Math.max(ZHIT, noteZ(n, t, G.run));   // 受け止めた位置で止める
   G.counts[kind]++;
   G.combo++; G.maxCombo = Math.max(G.maxCombo, G.combo);
   const mult = Math.min(1 + Math.floor(G.combo / 10) * 0.5, 4);
@@ -861,7 +870,7 @@ function judge(t) {
     const ang = aimAngle(n, B);
     if (Math.abs(dt) <= song.win && ang < n.best) n.best = ang;
     if (Math.abs(dt) <= song.pw && ang <= song.pdeg) { hit(n, 'perfect', t); continue; }
-    if (dt >= song.pw) {
+    if (dt >= 0.03) {
       if (n.best <= song.gdeg) { hit(n, 'great', t); continue; }
       if (dt > song.win) miss(n, t);
     }
@@ -877,9 +886,9 @@ const STARS = Array.from({ length: 90 }, () => {
 });
 
 function noteZ(n, t, run) {
-  const dt = t - n.time;
-  if (dt <= 0) { const u = clamp(-dt / run.approach, 0, 1); return ZHIT + (ZFAR - ZHIT) * Math.pow(u, 1.6); }
-  return Math.max(1.4, ZHIT - dt * 2.2);
+  // 奥（ZFAR）から一定の速さで手前に飛んできて、打点でパッドの位置に着きます
+  const speed = (ZFAR - ZHIT) / run.approach;
+  return Math.max(1.0, ZHIT - (t - n.time) * speed);
 }
 
 function drawNote(x, y, r, color, alpha) {
@@ -929,9 +938,49 @@ function draw(t, dt) {
     const d = n.time - t;
     if (d > 0.8) break;
     if (d < -song.win) continue;
-    const k = n.col + ',' + n.row;
+    const k = n.pad;
     act[k] = Math.max(act[k] || 0, 1 - clamp(d, 0, 0.8) / 0.8);
   }
+
+  // パッドをつなぐ円（打点の位置）
+  const ringPath = (Z) => {
+    let started = false;
+    for (let i = 0; i <= run.ring.length; i++) {
+      const q = run.ring[i % run.ring.length];
+      const p = proj(localToGame(q[0], q[1], Z));
+      if (p.z <= 0.1) { started = false; continue; }
+      if (!started) { cx.moveTo(p.x, p.y); started = true; } else cx.lineTo(p.x, p.y);
+    }
+  };
+  cx.strokeStyle = 'rgba(255,246,230,.2)'; cx.lineWidth = 2; cx.beginPath(); ringPath(ZHIT); cx.stroke();
+
+  // 奥から手前へ流れる拍のリング（トンネルのように奥行きを見せる）
+  const speed = (ZFAR - ZHIT) / run.approach;
+  for (let k = Math.ceil((t - 0.02) / run.beat); k * run.beat - t < run.approach; k++) {
+    const dtb = k * run.beat - t;
+    const Z = ZHIT + dtb * speed;
+    const near = 1 - (Z - ZHIT) / (ZFAR - ZHIT);          // 手前ほど濃い
+    const down = k % 4 === 0;
+    cx.globalAlpha = clamp(near * (down ? 0.75 : 0.45), 0, 1);
+    cx.strokeStyle = down ? C.sun : C.paper;
+    cx.lineWidth = down ? 3 : 2;
+    cx.beginPath(); ringPath(Z); cx.stroke();
+  }
+  cx.globalAlpha = 1;
+
+  // 各パッドへ続く道すじ（奥の一点から伸びる線）
+  const c0 = proj(localToGame(0, 0, ZFAR));
+  cx.lineCap = 'round';
+  for (const pad of run.pads) {
+    const p = proj(localToGame(pad.tx, pad.ty, ZHIT));
+    if (p.z <= 0.1 || c0.z <= 0.1) continue;
+    const a = act[pad.key] || 0;
+    cx.strokeStyle = a > 0.05 ? pad.color : C.paper;
+    cx.globalAlpha = a > 0.05 ? 0.2 + a * 0.4 : 0.08;
+    cx.lineWidth = 2 + a * 3;
+    cx.beginPath(); cx.moveTo(c0.x, c0.y); cx.lineTo(p.x, p.y); cx.stroke();
+  }
+  cx.globalAlpha = 1;
 
   // パッド（受け止める場所）
   for (const pad of run.pads) {
@@ -939,10 +988,10 @@ function draw(t, dt) {
     if (p.z <= 0.1) continue;
     const r = f * NOTE_R / p.z * (1 + 0.04 * pulse), a = act[pad.key] || 0;
     cx.lineWidth = 3 + a * 3;
-    cx.strokeStyle = a > 0.05 ? pad.color : 'rgba(255,246,230,.4)';
-    cx.globalAlpha = 0.35 + a * 0.65;
-    cx.setLineDash(a > 0.5 ? [] : [9, 9]);
-    cx.beginPath(); cx.arc(p.x, p.y, r * 1.1, 0, TAU); cx.stroke();
+    cx.strokeStyle = a > 0.05 ? pad.color : 'rgba(255,246,230,.45)';
+    cx.globalAlpha = 0.4 + a * 0.6;
+    cx.setLineDash(a > 0.5 ? [] : [7, 7]);
+    cx.beginPath(); cx.arc(p.x, p.y, r * 1.06, 0, TAU); cx.stroke();
     cx.setLineDash([]);
     cx.globalAlpha = 1;
   }
@@ -955,15 +1004,14 @@ function draw(t, dt) {
     if (n.state === 1 && t - n.endT > 0.22) continue;
     if (n.state === 2 && t - n.endT > 0.35) continue;
     if (n.state !== 1 && d < -0.6) continue;
-    const z = noteZ(n, t, run);
-    const P = localToGame(n.tx, n.ty, z);
-    const p = proj(P);
+    const z = n.state === 1 ? ZHIT + (n.hitZ - ZHIT) * (1 - Math.min(1, (t - n.endT) / 0.08)) : noteZ(n, t, run);
+    const p = proj(localToGame(n.tx, n.ty, z));
     if (p.z <= 0.15) continue;
     vis.push({ n, p, z });
   }
   vis.sort((a, b) => b.z - a.z);
   for (const v of vis) {
-    const { n, p } = v, r = f * NOTE_R / p.z;
+    const { n, p } = v, r = Math.max(3, (f * NOTE_R / ZHIT) * Math.pow(ZHIT / v.z, 0.8));
     if (n.state === 1) {              // 受け止めた瞬間: ふくらんで消える
       const k = (t - n.endT) / 0.22;
       drawNote(p.x, p.y, r * (1 + k * 0.9), n.color, 1 - k);
@@ -971,14 +1019,14 @@ function draw(t, dt) {
     }
     let alpha = 1, color = n.color;
     if (n.state === 2) { alpha = 0.55 * (1 - (t - n.endT) / 0.35); color = C.dust; }
-    else if (t < n.time) {
-      const tail = proj(localToGame(n.tx, n.ty, v.z + 3));
+    else {
+      const tail = proj(localToGame(n.tx, n.ty, v.z + 4));            // 奥に伸びる尾
       if (tail.z > 0.15) {
-        cx.strokeStyle = n.color; cx.globalAlpha = 0.28; cx.lineCap = 'round'; cx.lineWidth = Math.max(2, r * 0.45);
+        cx.strokeStyle = n.color; cx.globalAlpha = 0.3; cx.lineCap = 'round'; cx.lineWidth = Math.max(2, r * 0.5);
         cx.beginPath(); cx.moveTo(tail.x, tail.y); cx.lineTo(p.x, p.y); cx.stroke();
         cx.globalAlpha = 1;
       }
-      alpha = clamp(1 - (v.z - (ZFAR - 8)) / 8, 0, 1);
+      alpha = clamp(1 - (v.z - (ZFAR - 10)) / 10, 0, 1);
     }
     drawNote(p.x, p.y, r, color, alpha);
   }
