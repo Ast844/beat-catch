@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12143a">
+<meta name="mobile-web-app-capable" content="yes">
+<title>BEAT CATCH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* The game scene is a fixed dark, saturated look on purpose: notes must read over any camera image. */
+  :root {
+    color-scheme: dark;
+    --ink: #12143a;
+    --paper: #fff6e6;
+    --tomato: #ff5a3c;
+    --sun: #ffc82e;
+    --mint: #38d9a9;
+    --cobalt: #4d6bff;
+    --dust: #8c90bd;
+    --font-display: "Dela Gothic One", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    --font-body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(120% 70% at 15% 0%, #2c2a8a 0%, transparent 60%),
+      radial-gradient(90% 60% at 100% 100%, #4a1f6a 0%, transparent 65%),
+      var(--ink);
+    color: var(--paper);
+    font-family: var(--font-body);
+    font-weight: 500;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior: none;
+  }
+
+  #cam { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; z-index: 0; }
+  #cam.on { display: block; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; touch-action: none; }
+
+  .stroke { -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill; }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none; display: none;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  body.playing #hud { display: block; }
+  #progress { position: absolute; left: 0; right: 0; top: env(safe-area-inset-top, 0px); height: 6px; background: rgba(255, 246, 230, .28); }
+  #progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--tomato), var(--sun)); }
+  .hud-row { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 12px; }
+  #score { font: 400 28px/1.1 var(--font-display); color: var(--paper); font-variant-numeric: tabular-nums; }
+  #btn-pause {
+    pointer-events: auto; width: 46px; height: 46px; border-radius: 50%;
+    border: 3px solid var(--ink); background: var(--paper); box-shadow: 0 4px 0 var(--ink);
+    display: grid; grid-auto-flow: column; gap: 5px; place-content: center; padding: 0; cursor: pointer;
+  }
+  #btn-pause i { width: 6px; height: 18px; background: var(--ink); border-radius: 2px; }
+  #combo { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 66px); text-align: center; font: 400 46px/1 var(--font-display); color: var(--sun); }
+  #combo small { font: 700 14px var(--font-body); margin-left: 6px; color: var(--paper); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
+  #judge { position: absolute; left: 0; right: 0; top: 27%; text-align: center; font: 400 40px/1 var(--font-display); opacity: 0; }
+  #count { position: absolute; left: 0; right: 0; top: 38%; text-align: center; font: 400 96px/1 var(--font-display); color: var(--paper); opacity: 0; }
+
+  /* ---------- Screens ---------- */
+  .screen {
+    position: fixed; inset: 0; z-index: 5; display: none; overflow-y: auto;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    background: rgba(18, 20, 58, .86);
+  }
+  .screen.on { display: flex; }
+  .inner { margin: auto; width: min(100%, 420px); display: flex; flex-direction: column; align-items: center; gap: 18px; position: relative; z-index: 1; }
+  .deco { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .deco b { position: absolute; border-radius: 50%; border: 6px solid var(--paper); box-shadow: 6px 8px 0 rgba(0, 0, 0, .32); }
+
+  h2 { margin: 0; font: 400 30px/1.2 var(--font-display); text-align: center; }
+  p { margin: 0; line-height: 1.7; }
+  .lead { font-size: 18px; font-weight: 700; text-align: center; }
+  .hint { font-size: 14px; text-align: center; color: #d9d6ee; }
+
+  .logo { margin: 0 0 4px; font: 400 clamp(60px, 22vw, 104px)/0.95 var(--font-display); text-align: center; }
+  .logo .row { display: block; }
+  .logo .row span {
+    display: inline-block; color: var(--c);
+    -webkit-text-stroke: 10px var(--ink); paint-order: stroke fill; text-shadow: 0 7px 0 var(--ink);
+    transform: rotate(var(--r));
+    animation: drop .7s cubic-bezier(.2, 1.5, .4, 1) both; animation-delay: calc(var(--i) * 70ms);
+  }
+  @keyframes drop { from { transform: translateY(-150%) rotate(calc(var(--r) * 3)); opacity: 0; } to { transform: rotate(var(--r)); opacity: 1; } }
+
+  .btn {
+    font: 400 22px/1.2 var(--font-display); color: var(--ink); background: var(--sun);
+    border: 4px solid var(--ink); border-radius: 18px; padding: 14px 34px; box-shadow: 0 6px 0 var(--ink);
+    cursor: pointer; touch-action: manipulation; transition: transform .08s, box-shadow .08s;
+  }
+  .btn:active { transform: translateY(6px); box-shadow: 0 0 0 var(--ink); }
+  .btn:disabled { opacity: .7; }
+  .btn.ghost { background: var(--paper); font-size: 17px; padding: 11px 24px; }
+  .btn:focus-visible, .card:focus-visible, #btn-pause:focus-visible { outline: 3px solid var(--paper); outline-offset: 3px; }
+
+  .panel {
+    width: 100%; background: var(--paper); color: var(--ink);
+    border: 4px solid var(--ink); border-radius: 24px; padding: 22px 20px; box-shadow: 0 8px 0 rgba(0, 0, 0, .45);
+    display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+  }
+  .panel h2 { font-size: 26px; }
+  .panel p { font-size: 16px; }
+
+  .status { font-size: 14px; text-align: center; color: #d9d6ee; }
+  .cards { width: 100%; display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    width: 100%; text-align: left; display: grid; gap: 4px; padding: 14px 18px 16px;
+    background: var(--paper); color: var(--ink); font-family: var(--font-body);
+    border: 4px solid var(--ink); border-radius: 20px; box-shadow: 0 6px 0 rgba(0, 0, 0, .45);
+    cursor: pointer; touch-action: manipulation; transition: transform .08s, box-shadow .08s;
+  }
+  .card:active { transform: translateY(6px); box-shadow: 0 0 0 var(--ink); }
+  .card .song { font: 400 24px/1.3 var(--font-display); }
+  .card .meta { font-size: 14px; font-weight: 700; color: #4b4e7a; }
+  .card .best { font-size: 14px; font-weight: 700; color: #4b4e7a; }
+  .tag { justify-self: start; font: 700 13px/1 var(--font-body); padding: 5px 11px; border: 2px solid var(--ink); border-radius: 999px; color: var(--ink); }
+  .tag.mint { background: var(--mint); } .tag.sun { background: var(--sun); } .tag.tomato { background: var(--tomato); }
+
+  .rank {
+    width: 132px; height: 132px; border-radius: 50%; border: 5px solid var(--ink); display: grid; place-items: center;
+    font: 400 84px/1 var(--font-display); color: var(--ink); background: var(--sun); transform: rotate(-6deg); box-shadow: 0 6px 0 var(--ink);
+  }
+  .big { font: 400 34px/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+  .newbest { font: 700 15px/1 var(--font-body); background: var(--tomato); color: var(--paper); padding: 6px 12px; border-radius: 999px; border: 2px solid var(--ink); }
+  .grid { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid div { background: #fff; border: 3px solid var(--ink); border-radius: 14px; padding: 8px 10px; font-size: 14px; font-weight: 700; }
+  .grid strong { display: block; font: 400 22px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+  .row-btns { display: flex; flex-direction: column; gap: 14px; align-items: center; width: 100%; }
+
+  .turn { position: fixed; inset: 0; z-index: 9; display: none; place-items: center; background: rgba(18, 20, 58, .96); text-align: center; padding: 24px; font: 400 24px/1.6 var(--font-display); }
+  @media (orientation: landscape) and (pointer: coarse) { body.playing .turn { display: grid; } }
+
+  @media (prefers-reduced-motion: reduce) { .logo .row span { animation: none; } .btn, .card { transition: none; } }
+</style>
+</head>
+<body>
+<video id="cam" playsinline muted autoplay></video>
+<canvas id="stage"></canvas>
+
+<div id="hud">
+  <div id="progress"><i></i></div>
+  <div class="hud-row">
+    <div id="score" class="stroke">0</div>
+    <button id="btn-pause" aria-label="ポーズ"><i></i><i></i></button>
+  </div>
+  <div id="combo" class="stroke"></div>
+  <div id="judge" class="stroke"></div>
+  <div id="count" class="stroke"></div>
+</div>
+
+<section class="screen on" id="screen-title">
+  <div class="deco" aria-hidden="true">
+    <b style="width:150px;height:150px;background:var(--tomato);top:5%;left:-46px"></b>
+    <b style="width:92px;height:92px;background:var(--cobalt);top:15%;right:9%"></b>
+    <b style="width:220px;height:220px;background:var(--sun);bottom:-80px;right:-60px"></b>
+    <b style="width:64px;height:64px;background:var(--mint);bottom:24%;left:7%"></b>
+  </div>
+  <div class="inner">
+    <h1 class="logo" aria-label="BEAT CATCH">
+      <span class="row" aria-hidden="true">
+        <span style="--c:var(--tomato);--r:-5deg;--i:0">B</span><span style="--c:var(--sun);--r:3deg;--i:1">E</span><span style="--c:var(--mint);--r:-3deg;--i:2">A</span><span style="--c:var(--cobalt);--r:5deg;--i:3">T</span>
+      </span>
+      <span class="row" aria-hidden="true">
+        <span style="--c:var(--sun);--r:4deg;--i:4">C</span><span style="--c:var(--cobalt);--r:-4deg;--i:5">A</span><span style="--c:var(--tomato);--r:3deg;--i:6">T</span><span style="--c:var(--mint);--r:-5deg;--i:7">C</span><span style="--c:var(--sun);--r:4deg;--i:8">H</span>
+      </span>
+    </h1>
+    <p class="lead">スマホを動かして、<br>飛んでくるビートを受け止めよう。</p>
+    <button class="btn" id="btn-start">はじめる</button>
+    <p class="hint">カメラとモーションセンサーを使います。<br>周りに物や人がない、広い場所で遊んでください。</p>
+  </div>
+</section>
+
+<section class="screen" id="screen-select">
+  <div class="inner">
+    <h2>曲をえらぶ</h2>
+    <p class="status" id="status"></p>
+    <div class="cards" id="cards"></div>
+    <button class="btn ghost" id="btn-retry" hidden>センサーをもう一度試す</button>
+  </div>
+</section>
+
+<section class="screen" id="screen-ready">
+  <div class="inner">
+    <div class="panel">
+      <span class="tag" id="ready-tag"></span>
+      <h2 id="ready-title"></h2>
+      <p id="ready-text"></p>
+      <button class="btn" id="btn-go">この向きで始める</button>
+      <button class="btn ghost" id="btn-ready-back">もどる</button>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="screen-pause">
+  <div class="inner">
+    <div class="panel">
+      <h2>ポーズ</h2>
+      <p>スマホを正面に構えてから「正面を合わせ直す」を押すと、その向きが新しい正面になります。</p>
+      <div class="row-btns">
+        <button class="btn" id="btn-resume">つづける</button>
+        <button class="btn ghost" id="btn-recenter">正面を合わせ直す</button>
+        <button class="btn ghost" id="btn-quit">曲えらびにもどる</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="screen-result">
+  <div class="inner">
+    <div class="panel">
+      <div class="rank" id="res-rank">S</div>
+      <div class="big" id="res-score">0</div>
+      <span class="newbest" id="res-new" hidden>ベスト更新！</span>
+      <div class="grid">
+        <div>パーフェクト<strong id="res-perfect">0</strong></div>
+        <div>グレート<strong id="res-great">0</strong></div>
+        <div>ミス<strong id="res-miss">0</strong></div>
+        <div>さいだいコンボ<strong id="res-combo">0</strong></div>
+      </div>
+      <div class="row-btns">
+        <button class="btn" id="btn-again">もういちど</button>
+        <button class="btn ghost" id="btn-songs">曲をえらぶ</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="turn" role="alert">スマホを縦向きにして<br>遊んでください</div>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================
+   基本ユーティリティ
+   ===================================================== */
+const $ = (s) => document.querySelector(s);
+const TAU = Math.PI * 2;
+const rad = (d) => d * Math.PI / 180;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const midiF = (n) => 440 * Math.pow(2, (n - 69) / 12);
+const mulberry32 = (a) => () => {
+  a |= 0; a = a + 0x6D2B79F5 | 0;
+  let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
+};
+
+const C = { ink: '#12143a', paper: '#fff6e6', tomato: '#ff5a3c', sun: '#ffc82e', mint: '#38d9a9', cobalt: '#4d6bff', dust: '#8c90bd' };
+const COLS3 = [C.tomato, C.sun, C.cobalt];
+const COLS4 = [C.tomato, C.sun, C.mint, C.cobalt];
+
+// 空間の設定: ノーツは正面 ZHIT メートル先の「パッド」に向かって飛んできます
+const ZHIT = 2.2, ZFAR = 34, NOTE_R = 0.3, VFOV = 68;
+
+/* =====================================================
+   曲データ（オリジナル曲をブラウザ内で生成して鳴らします）
+   コード進行: Am - F - C - G
+   melody の数字は「そのコードの構成音リスト」の番号
+   ===================================================== */
+const CHORDS = [
+  { root: 45, tones: [57, 60, 64, 69, 72, 76], pad: [57, 60, 64] },
+  { root: 41, tones: [53, 57, 60, 65, 69, 72], pad: [53, 57, 60] },
+  { root: 48, tones: [60, 64, 67, 72, 76, 79], pad: [55, 60, 64] },
+  { root: 43, tones: [55, 59, 62, 67, 71, 74], pad: [55, 59, 62] },
+];
+
+const SONGS = [
+  {
+    id: 'first', title: 'はじめのビート', level: 'やさしい', tint: 'mint',
+    bpm: 96, bars: 18, melodyFrom: 2,
+    arrangement: [0, 1, 0, 2, 0, 1, 0, 2, 3, 1, 0, 2, 1, 3],
+    patterns: [
+      [2,-1,-1,-1, 3,-1,-1,-1, 4,-1,-1,-1, -1,-1,-1,-1],
+      [4,-1,-1,-1, -1,-1,-1,-1, 3,-1,-1,-1, 2,-1,-1,-1],
+      [1,-1,-1,-1, 3,-1,-1,-1, 4,-1,-1,-1, 5,-1,-1,-1],
+      [3,-1,-1,-1, -1,-1,-1,-1, 2,-1,-1,-1, -1,-1,-1,-1],
+    ],
+    drums: { kick: [0, 4, 8, 12], snare: [4, 12], hat: [2, 6, 10, 14], open: [] },
+    bass: [0, 8],
+    cols: [-16, 0, 16], rows: [15],
+    approach: 2.3, win: 0.20, pw: 0.09, pdeg: 7, gdeg: 12.5,
+    seed: 7, stay: 0.35, jump: 0,
+  },
+  {
+    id: 'neon', title: 'ネオンのよる', level: 'ふつう', tint: 'sun',
+    bpm: 118, bars: 20, melodyFrom: 2,
+    arrangement: [0, 1, 0, 1, 2, 3, 2, 3, 0, 1, 0, 1, 2, 3, 3, 2],
+    patterns: [
+      [2,-1,-1,-1, 3,-1,-1,-1, 4,-1,3,-1, 2,-1,-1,-1],
+      [4,-1,-1,-1, 5,-1,-1,-1, 4,-1,-1,-1, 3,-1,2,-1],
+      [0,-1,-1,-1, 2,-1,3,-1, 4,-1,-1,-1, 3,-1,-1,2],
+      [5,-1,-1,4, -1,-1,3,-1, 4,-1,-1,-1, 3,-1,2,-1],
+    ],
+    drums: { kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], open: [14] },
+    bass: [0, 6, 8, 14],
+    cols: [-22, 0, 22], rows: [-16, 14],
+    approach: 2.0, win: 0.16, pw: 0.07, pdeg: 5.5, gdeg: 10.5,
+    seed: 23, stay: 0.25, jump: 0,
+  },
+  {
+    id: 'storm', title: 'ビートストーム', level: 'むずかしい', tint: 'tomato',
+    bpm: 140, bars: 24, melodyFrom: 2,
+    arrangement: [0, 1, 0, 1, 2, 3, 2, 3, 0, 1, 0, 1, 2, 3, 2, 3, 0, 1, 2, 3],
+    patterns: [
+      [4,-1,-1,-1, 3,-1,4,-1, 5,-1,-1,-1, 3,-1,-1,-1],
+      [5,-1,4,-1, -1,-1,3,-1, 2,-1,3,-1, 4,-1,-1,-1],
+      [0,-1,-1,2, 3,-1,-1,-1, 4,-1,3,3, -1,-1,2,-1],
+      [5,-1,4,-1, 3,-1,4,5, -1,-1,4,-1, 3,-1,2,-1],
+    ],
+    drums: { kick: [0, 4, 8, 10, 12], snare: [4, 12], hat: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], open: [6, 14] },
+    bass: [0, 3, 6, 8, 11, 14, 15],
+    cols: [-30, -10, 10, 30], rows: [-16, 6, 20],
+    approach: 1.7, win: 0.13, pw: 0.06, pdeg: 4.5, gdeg: 9,
+    seed: 41, stay: 0.3, jump: 0.2,
+  },
+];
+
+function buildMap(song) {
+  const step = 60 / song.bpm / 4;
+  const rnd = mulberry32(song.seed);
+  const colColors = song.cols.length === 4 ? COLS4 : COLS3;
+  const notes = [];
+  let col = Math.floor((song.cols.length - 1) / 2), prev = null;
+  for (let i = 0; i < song.arrangement.length; i++) {
+    const bar = song.melodyFrom + i;
+    const pat = song.patterns[song.arrangement[i]];
+    const chord = CHORDS[bar % 4];
+    for (let s = 0; s < 16; s++) {
+      const idx = pat[s];
+      if (idx < 0) continue;
+      const g = bar * 16 + s, time = g * step, nr = song.rows.length;
+      let c = col;
+      let r = nr === 1 ? 0 : nr === 2 ? (idx < 3 ? 0 : 1) : (idx < 2 ? 0 : idx < 4 ? 1 : 2);
+      if (prev && time - prev.time < 0.16) {
+        c = prev.col; r = prev.row;            // 16分の連打は同じ場所
+      } else if (rnd() >= song.stay) {
+        const gap = prev ? time - prev.time : 9;
+        const far = gap >= 0.3 && rnd() < song.jump;
+        const mv = (rnd() < 0.5 ? -1 : 1) * (far ? 2 : 1);
+        let nc = c + mv;
+        if (nc < 0 || nc >= song.cols.length) nc = c - mv;
+        c = clamp(nc, 0, song.cols.length - 1);
+      }
+      col = c;
+      const yaw = song.cols[c], pitch = song.rows[r];
+      const tx = Math.tan(rad(yaw)) * ZHIT, ty = Math.tan(rad(pitch)) * ZHIT;
+      const L = Math.hypot(tx, ty, ZHIT);
+      const n = { g, time, freq: midiF(chord.tones[idx]), col: c, row: r, yaw, pitch, color: colColors[c],
+                  tx, ty, dir: [tx / L, ty / L, ZHIT / L], state: 0, best: 999, endT: 0 };
+      notes.push(n);
+      prev = n;
+    }
+  }
+  return notes;
+}
+
+/* =====================================================
+   状態
+   ===================================================== */
+const G = { state: 'title', song: null, run: null, notes: [], score: 0, combo: 0, maxCombo: 0,
+            counts: { perfect: 0, great: 0, miss: 0 }, particles: [], flash: null, padActive: {}, last: 0, lastBeat: -1 };
+const S = { mode: 'drag', seen: false, alpha: 0, beta: 0, gamma: 0, yaw0: 0, pitch0: 0, fbYaw: 0, fbPitch: 0, listening: false, camera: false };
+const keys = {};
+const view = { W: 360, H: 640, f: 500 };
+let ac = null, master = null, noiseBuf = null, out = null, fxIn = null, wakeLock = null;
+
+/* =====================================================
+   オーディオ
+   ===================================================== */
+function initAudio() {
+  if (ac) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  ac = new AC();
+  master = ac.createGain(); master.gain.value = 1;
+  const comp = ac.createDynamicsCompressor();
+  master.connect(comp); comp.connect(ac.destination);
+  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  setInterval(schedule, 40);
+}
+
+function buildBus(step) {
+  const bus = ac.createGain(); bus.gain.value = 0.85; bus.connect(master);
+  const fx = ac.createGain(); fx.gain.value = 0.32;
+  const dl = ac.createDelay(1); dl.delayTime.value = step * 3;
+  const fb = ac.createGain(); fb.gain.value = 0.32;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+  fx.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(bus);
+  return { bus, fx };
+}
+
+function vKick(t) {
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+  g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+  o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.4);
+}
+function vNoise(t, dur, type, freq, vol) {
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  s.connect(f); f.connect(g); g.connect(out);
+  s.start(t, Math.random() * 0.5, dur + 0.03);
+}
+function vSnare(t) {
+  vNoise(t, 0.17, 'bandpass', 1900, 0.5);
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.1);
+  g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.14);
+}
+function vBass(t, f, dur) {
+  const o = ac.createOscillator(), fl = ac.createBiquadFilter(), g = ac.createGain();
+  o.type = 'sawtooth'; o.frequency.value = f;
+  fl.type = 'lowpass'; fl.frequency.setValueAtTime(900, t); fl.frequency.exponentialRampToValueAtTime(220, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.34, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(fl); fl.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.03);
+}
+function vLead(t, f, dur) {
+  const fl = ac.createBiquadFilter(), g = ac.createGain();
+  fl.type = 'lowpass'; fl.frequency.setValueAtTime(3600, t); fl.frequency.exponentialRampToValueAtTime(1100, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.15, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  [-7, 7].forEach((dt) => {
+    const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = dt;
+    o.connect(fl); o.start(t); o.stop(t + dur + 0.05);
+  });
+  fl.connect(g); g.connect(out); g.connect(fxIn);
+}
+function vPad(t, freqs, dur) {
+  freqs.forEach((n) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle'; o.frequency.value = midiF(n);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.055, t + 0.12);
+    g.gain.setValueAtTime(0.055, t + dur - 0.2); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+  });
+}
+function vBlip(freq, kind) {
+  if (!ac || !out) return;
+  const t = ac.currentTime + 0.005;
+  const o = ac.createOscillator(), g = ac.createGain();
+  if (kind === 'miss') {
+    o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(80, t + 0.12);
+    g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+  } else {
+    o.type = 'sine'; o.frequency.setValueAtTime(freq * 2, t);
+    g.gain.setValueAtTime(kind === 'perfect' ? 0.3 : 0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+  }
+  o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.2);
+}
+
+function playStep(g, t) {
+  const run = G.run, song = run.song;
+  const bar = Math.floor(g / 16), s = g % 16, chord = CHORDS[bar % 4], d = song.drums;
+  if (d.kick.includes(s)) vKick(t);
+  if (d.snare.includes(s)) vSnare(t);
+  if (d.hat.includes(s)) {
+    const open = d.open.includes(s);
+    const accent = s % 4 === 2 ? 0.16 : 0.09;
+    vNoise(t, open ? 0.14 : 0.045, 'highpass', 7500, open ? 0.14 : accent);
+  }
+  if (song.bass.includes(s)) vBass(t, midiF(chord.root), run.step * 2);
+  if (s === 0) vPad(t, chord.pad, run.step * 16);
+  const lead = run.leadMap.get(g);
+  if (lead) vLead(t, lead, run.step * 2.4);
+}
+
+function schedule() {
+  const run = G.run;
+  if (!run || !ac) return;
+  const now = ac.currentTime;
+  while (run.next < run.totalSteps && run.t0 + run.next * run.step < now + 0.3) {
+    playStep(run.next, run.t0 + run.next * run.step);
+    run.next++;
+  }
+}
+
+const gameTime = () => ac.currentTime - G.run.t0 - (ac.outputLatency || 0);
+
+/* =====================================================
+   入力（モーションセンサー / ドラッグ）
+   ===================================================== */
+function onOri(e) {
+  if (e.alpha == null || e.beta == null || e.gamma == null) return;
+  S.alpha = e.alpha; S.beta = e.beta; S.gamma = e.gamma; S.seen = true;
+}
+
+function rawBasis() {
+  const a = rad(S.alpha), b = rad(S.beta), g = rad(S.gamma);
+  const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), cg = Math.cos(g), sg = Math.sin(g);
+  const R00 = ca * cg - sa * sb * sg, R01 = -sa * cb, R02 = ca * sg + sa * sb * cg;
+  const R10 = sa * cg + ca * sb * sg, R11 = ca * cb, R12 = sa * sg - ca * sb * cg;
+  const R20 = -cb * sg, R21 = sb, R22 = cb * cg;
+  return { right: [R00, R10, R20], up: [R01, R11, R21], fwd: [-R02, -R12, -R22] };
+}
+// 世界座標(東,北,上) → ゲーム座標(右,上,前)
+function toGame(v) {
+  const c = Math.cos(S.yaw0), s = Math.sin(S.yaw0);
+  return [v[0] * c - v[1] * s, v[2], v[0] * s + v[1] * c];
+}
+function camBasis() {
+  if (S.mode === 'gyro') {
+    const b = rawBasis();
+    return { right: toGame(b.right), up: toGame(b.up), fwd: toGame(b.fwd) };
+  }
+  const y = S.fbYaw, p = S.fbPitch, sy = Math.sin(y), cy = Math.cos(y), sp = Math.sin(p), cp = Math.cos(p);
+  return { right: [cy, 0, -sy], up: [-sy * sp, cp, -cy * sp], fwd: [sy * cp, sp, cy * cp] };
+}
+function calibrate() {
+  if (S.mode === 'gyro') {
+    const b = rawBasis();
+    let h = [b.fwd[0], b.fwd[1]];
+    if (Math.hypot(h[0], h[1]) < 0.35) h = [b.up[0], b.up[1]];
+    S.yaw0 = Math.atan2(h[0], h[1]);
+    const gf = toGame(b.fwd);
+    S.pitch0 = clamp(Math.asin(clamp(gf[1], -1, 1)), rad(-40), rad(40));
+  } else {
+    S.fbYaw = 0; S.fbPitch = 0; S.pitch0 = 0; S.yaw0 = 0;
+  }
+}
+// パッド方向（正面基準）→ ゲーム座標。構えたときの傾き pitch0 ぶんだけ持ち上げます
+function localToGame(x, y, z) {
+  const cp = Math.cos(S.pitch0), sp = Math.sin(S.pitch0);
+  return [x, y * cp + z * sp, -y * sp + z * cp];
+}
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+async function askMotion() {
+  try {
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      return (await DeviceOrientationEvent.requestPermission()) === 'granted';
+    }
+    return !!window.DeviceOrientationEvent;
+  } catch (e) { return false; }
+}
+async function setupMotion(granted) {
+  S.seen = false;
+  if (granted) {
+    if (!S.listening) { window.addEventListener('deviceorientation', onOri, true); S.listening = true; }
+    for (let i = 0; i < 14 && !S.seen; i++) await new Promise((r) => setTimeout(r, 60));
+  }
+  S.mode = (granted && S.seen) ? 'gyro' : 'drag';
+}
+async function setupCamera() {
+  if (S.camera) return;
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    const cam = $('#cam');
+    cam.srcObject = stream;
+    await cam.play();
+    cam.classList.add('on');
+    S.camera = true;
+  } catch (e) { S.camera = false; }
+}
+
+/* ドラッグ操作（センサーが使えないとき）*/
+const stage = $('#stage'), cx = stage.getContext('2d');
+let drag = null;
+stage.addEventListener('pointerdown', (e) => { if (S.mode !== 'drag') return; drag = { x: e.clientX, y: e.clientY }; try { stage.setPointerCapture(e.pointerId); } catch (_) {} });
+stage.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  S.fbYaw += rad((e.clientX - drag.x) * 0.16);
+  S.fbPitch = clamp(S.fbPitch - rad((e.clientY - drag.y) * 0.16), rad(-50), rad(50));
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+['pointerup', 'pointercancel'].forEach((n) => stage.addEventListener(n, () => { drag = null; }));
+window.addEventListener('keydown', (e) => { keys[e.key] = true; });
+window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+function updateInput(dt) {
+  if (S.mode !== 'drag') return;
+  const sp = rad(70) * dt;
+  if (keys.ArrowLeft) S.fbYaw -= sp;
+  if (keys.ArrowRight) S.fbYaw += sp;
+  if (keys.ArrowUp) S.fbPitch = clamp(S.fbPitch + sp, rad(-50), rad(50));
+  if (keys.ArrowDown) S.fbPitch = clamp(S.fbPitch - sp, rad(-50), rad(50));
+}
+
+/* =====================================================
+   画面の切り替え・保存
+   ===================================================== */
+function show(id) { document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('on', s.id === id)); }
+function hideAll() { document.querySelectorAll('.screen').forEach((s) => s.classList.remove('on')); }
+function loadBest(id) { try { const v = localStorage.getItem('beatcatch:best:' + id); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function saveBest(id, v) { try { localStorage.setItem('beatcatch:best:' + id, JSON.stringify(v)); } catch (e) {} }
+
+function renderSongs() {
+  const box = $('#cards');
+  box.innerHTML = '';
+  SONGS.forEach((s) => {
+    if (!s._count) { s._count = buildMap(s).length; s._sec = Math.round(s.bars * 16 * 60 / s.bpm / 4); }
+    const best = loadBest(s.id);
+    const b = document.createElement('button');
+    b.className = 'card';
+    b.innerHTML = `<span class="tag ${s.tint}">${s.level}</span><span class="song">${s.title}</span>` +
+      `<span class="meta">テンポ ${s.bpm}　約${s._sec}秒　ノーツ ${s._count}</span>` +
+      `<span class="best">${best ? `ベスト ${best.rank}　${best.score.toLocaleString('ja-JP')}点` : 'まだ遊んでいません'}</span>`;
+    b.addEventListener('click', () => openReady(s));
+    box.appendChild(b);
+  });
+  const sensorText = S.mode === 'gyro' ? 'スマホを動かして遊びます' : '画面をドラッグして遊びます';
+  const camText = S.camera ? 'カメラの映像を背景に使います' : 'カメラは使わず、仮想の背景で遊びます';
+  $('#status').textContent = `${sensorText}。${camText}。`;
+  $('#btn-retry').hidden = S.mode === 'gyro';
+}
+
+function openReady(song) {
+  G.song = song;
+  const tag = $('#ready-tag'); tag.textContent = song.level; tag.className = 'tag ' + song.tint;
+  $('#ready-title').textContent = song.title;
+  $('#ready-text').textContent = S.mode === 'gyro'
+    ? 'いちばん遊びやすい向きにスマホを構えて、下のボタンを押してください。押した向きが「正面」になります。画面の中央の輪をノーツに重ねて受け止めます。'
+    : '画面をドラッグして、中央の輪をノーツに重ねて受け止めます。矢印キーでも動かせます。';
+  show('screen-ready');
+}
+
+/* =====================================================
+   プレイの開始・終了
+   ===================================================== */
+function startRun() {
+  const song = G.song;
+  calibrate();
+  ac.resume();
+  const step = 60 / song.bpm / 4;
+  const notes = buildMap(song);
+  const leadMap = new Map(notes.map((n) => [n.g, n.freq]));
+  const seen = new Map();
+  notes.forEach((n) => { const k = n.col + ',' + n.row; if (!seen.has(k)) seen.set(k, { key: k, tx: n.tx, ty: n.ty, color: n.color }); });
+  const b = buildBus(step);
+  out = b.bus; fxIn = b.fx;
+  const t0 = ac.currentTime + 0.4;
+  const totalDur = song.bars * 16 * step + 0.6;
+  b.bus.gain.setValueAtTime(0.85, ac.currentTime);
+  b.bus.gain.setValueAtTime(0.85, t0 + totalDur - 2.2);
+  b.bus.gain.linearRampToValueAtTime(0.0001, t0 + totalDur - 0.1);
+  G.run = { song, step, beat: step * 4, t0, next: 0, totalSteps: song.bars * 16, totalDur, approach: song.approach, leadMap, pads: [...seen.values()], bus: b.bus };
+  G.notes = notes;
+  G.score = 0; G.combo = 0; G.maxCombo = 0; G.counts = { perfect: 0, great: 0, miss: 0 };
+  G.particles = []; G.flash = null; G.lastBeat = -1;
+  $('#score').textContent = '0'; $('#combo').textContent = ''; $('#progress i').style.width = '0';
+  hideAll();
+  document.body.classList.add('playing');
+  G.state = 'playing';
+  try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then((w) => { wakeLock = w; }).catch(() => {}); } catch (e) {}
+}
+
+function killRun() {
+  const run = G.run;
+  if (run) { try { run.bus.disconnect(); } catch (e) {} }
+  G.run = null;
+  if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  document.body.classList.remove('playing');
+}
+
+function pause() {
+  if (G.state !== 'playing') return;
+  G.state = 'paused';
+  if (ac) ac.suspend();
+  show('screen-pause');
+}
+function resume() {
+  if (G.state !== 'paused') return;
+  hideAll();
+  G.state = 'playing';
+  if (ac) ac.resume();
+}
+function quit() {
+  if (ac && ac.state === 'suspended') ac.resume();
+  killRun();
+  G.state = 'select';
+  renderSongs();
+  show('screen-select');
+}
+
+function rankOf(acc) { return acc >= 0.92 ? 'S' : acc >= 0.8 ? 'A' : acc >= 0.65 ? 'B' : acc >= 0.45 ? 'C' : 'D'; }
+const RANK_COLOR = { S: C.sun, A: C.mint, B: C.cobalt, C: C.paper, D: C.dust };
+
+function finish() {
+  const song = G.run.song;
+  killRun();
+  G.state = 'result';
+  const total = G.notes.length || 1;
+  const acc = (G.counts.perfect + G.counts.great * 0.6) / total;
+  const rank = rankOf(acc);
+  const prev = loadBest(song.id);
+  const isNew = !prev || G.score > prev.score;
+  if (isNew) saveBest(song.id, { score: G.score, rank });
+  const r = $('#res-rank'); r.textContent = rank; r.style.background = RANK_COLOR[rank];
+  $('#res-score').textContent = G.score.toLocaleString('ja-JP') + '点';
+  $('#res-new').hidden = !isNew;
+  $('#res-perfect').textContent = G.counts.perfect;
+  $('#res-great').textContent = G.counts.great;
+  $('#res-miss').textContent = G.counts.miss;
+  $('#res-combo').textContent = G.maxCombo;
+  show('screen-result');
+}
+
+/* =====================================================
+   判定
+   ===================================================== */
+function aimAngle(n, B) {
+  const d = localToGame(n.dir[0], n.dir[1], n.dir[2]);
+  return Math.acos(clamp(dot(d, B.fwd), -1, 1)) * 180 / Math.PI;
+}
+
+function popText(el, text, color) {
+  el.textContent = text;
+  if (color) el.style.color = color;
+  el.animate([
+    { transform: 'scale(.6)', opacity: 0 },
+    { transform: 'scale(1.12)', opacity: 1, offset: 0.25 },
+    { transform: 'scale(1)', opacity: 1, offset: 0.7 },
+    { transform: 'scale(1)', opacity: 0 },
+  ], { duration: 650, easing: 'ease-out' });
+}
+function setCombo() {
+  $('#combo').innerHTML = G.combo >= 2 ? `${G.combo}<small>コンボ</small>` : '';
+}
+
+function burst(n, big) {
+  const B = camBasis();
+  const P = localToGame(n.tx, n.ty, ZHIT);
+  const cv = [dot(P, B.right), dot(P, B.up), dot(P, B.fwd)];
+  if (cv[2] <= 0.1) return;
+  const x = view.W / 2 + view.f * cv[0] / cv[2], y = view.H / 2 - view.f * cv[1] / cv[2];
+  const cols = [n.color, C.paper, C.sun];
+  const cnt = big ? 22 : 14;
+  for (let i = 0; i < cnt; i++) {
+    const a = Math.random() * TAU, sp = 120 + Math.random() * 260;
+    G.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.55, max: 0.55, r: 3 + Math.random() * 5, color: cols[i % 3] });
+  }
+  G.particles.push({ x, y, vx: 0, vy: 0, life: 0.35, max: 0.35, r: 0, ring: true, color: n.color });
+}
+
+function hit(n, kind, t) {
+  n.state = 1;
+  G.counts[kind]++;
+  G.combo++; G.maxCombo = Math.max(G.maxCombo, G.combo);
+  const mult = Math.min(1 + Math.floor(G.combo / 10) * 0.5, 4);
+  G.score += Math.round((kind === 'perfect' ? 100 : 60) * mult);
+  $('#score').textContent = G.score.toLocaleString('ja-JP');
+  setCombo();
+  popText($('#judge'), kind === 'perfect' ? 'PERFECT' : 'GREAT', kind === 'perfect' ? C.sun : C.mint);
+  burst(n, kind === 'perfect');
+  G.flash = { color: n.color, t: 0.28 };
+  vBlip(n.freq, kind);
+  if (navigator.vibrate) { try { navigator.vibrate(kind === 'perfect' ? 18 : 10); } catch (e) {} }
+}
+function miss(n, t) {
+  n.state = 2; n.endT = t;
+  G.counts.miss++;
+  G.combo = 0;
+  setCombo();
+  popText($('#judge'), 'MISS', C.paper);
+  vBlip(0, 'miss');
+}
+
+function judge(t) {
+  const song = G.run.song, B = camBasis();
+  for (const n of G.notes) {
+    if (n.state !== 0) continue;
+    const d = n.time - t;            // 打点までの残り時間（正なら未来）
+    if (d > song.win) break;         // 以降のノーツはさらに先
+    const dt = -d;
+    const ang = aimAngle(n, B);
+    if (Math.abs(dt) <= song.win && ang < n.best) n.best = ang;
+    if (Math.abs(dt) <= song.pw && ang <= song.pdeg) { hit(n, 'perfect', t); continue; }
+    if (dt >= song.pw) {
+      if (n.best <= song.gdeg) { hit(n, 'great', t); continue; }
+      if (dt > song.win) miss(n, t);
+    }
+  }
+}
+
+/* =====================================================
+   描画
+   ===================================================== */
+const STARS = Array.from({ length: 90 }, () => {
+  const z = Math.random() * 2 - 1, a = Math.random() * TAU, r = Math.sqrt(1 - z * z);
+  return { v: [r * Math.cos(a), z, r * Math.sin(a)], s: Math.random() };
+});
+
+function noteZ(n, t, run) {
+  const dt = t - n.time;
+  if (dt <= 0) { const u = clamp(-dt / run.approach, 0, 1); return ZHIT + (ZFAR - ZHIT) * Math.pow(u, 1.6); }
+  return Math.max(1.4, ZHIT - dt * 2.2);
+}
+
+function drawNote(x, y, r, color, alpha) {
+  cx.globalAlpha = alpha;
+  cx.fillStyle = 'rgba(18,20,58,.55)';
+  cx.beginPath(); cx.arc(x + r * 0.1, y + r * 0.16, r * 1.06, 0, TAU); cx.fill();
+  cx.fillStyle = C.paper;
+  cx.beginPath(); cx.arc(x, y, r * 1.04, 0, TAU); cx.fill();
+  cx.fillStyle = color;
+  cx.beginPath(); cx.arc(x, y, r * 0.84, 0, TAU); cx.fill();
+  cx.fillStyle = 'rgba(255,255,255,.55)';
+  cx.beginPath(); cx.ellipse(x - r * 0.3, y - r * 0.34, r * 0.28, r * 0.16, -0.6, 0, TAU); cx.fill();
+  cx.strokeStyle = C.ink; cx.lineWidth = Math.max(1.5, r * 0.08);
+  cx.beginPath(); cx.arc(x, y, r * 1.04, 0, TAU); cx.stroke();
+  cx.globalAlpha = 1;
+}
+
+function draw(t, dt) {
+  const { W, H, f } = view, run = G.run, song = run.song;
+  const B = camBasis();
+  const proj = (P) => { const a = dot(P, B.right), b = dot(P, B.up), z = dot(P, B.fwd); return { x: W / 2 + f * a / z, y: H / 2 - f * b / z, z, a, b }; };
+  const beatPhase = (((t / run.beat) % 1) + 1) % 1, pulse = Math.exp(-beatPhase * 5);
+
+  cx.clearRect(0, 0, W, H);
+  if (S.camera) { cx.fillStyle = 'rgba(18,20,58,.30)'; cx.fillRect(0, 0, W, H); }
+
+  // 空間に浮かぶ星（向きの変化が分かりやすくなります）
+  cx.fillStyle = C.paper;
+  for (const s of STARS) {
+    const p = proj(s.v);
+    if (p.z < 0.15) continue;
+    cx.globalAlpha = 0.35 + s.s * 0.35;
+    cx.beginPath(); cx.arc(p.x, p.y, 1.2 + s.s * 1.4 + pulse * 1.2, 0, TAU); cx.fill();
+  }
+  cx.globalAlpha = 1;
+
+  // パッドの活性度（もうすぐ来るノーツがあるか）
+  const act = {};
+  for (const n of G.notes) {
+    if (n.state !== 0) continue;
+    const d = n.time - t;
+    if (d > 0.8) break;
+    if (d < -song.win) continue;
+    const k = n.col + ',' + n.row;
+    act[k] = Math.max(act[k] || 0, 1 - clamp(d, 0, 0.8) / 0.8);
+  }
+
+  // パッド（受け止める場所）
+  for (const pad of run.pads) {
+    const p = proj(localToGame(pad.tx, pad.ty, ZHIT));
+    if (p.z <= 0.1) continue;
+    const r = f * NOTE_R / p.z * (1 + 0.04 * pulse), a = act[pad.key] || 0;
+    cx.lineWidth = 3 + a * 3;
+    cx.strokeStyle = a > 0.05 ? pad.color : 'rgba(255,246,230,.4)';
+    cx.globalAlpha = 0.35 + a * 0.65;
+    cx.setLineDash(a > 0.5 ? [] : [9, 9]);
+    cx.beginPath(); cx.arc(p.x, p.y, r * 1.1, 0, TAU); cx.stroke();
+    cx.setLineDash([]);
+    cx.globalAlpha = 1;
+  }
+
+  // ノーツ
+  const vis = [];
+  for (const n of G.notes) {
+    const d = n.time - t;
+    if (n.state === 1) continue;
+    if (d > run.approach) break;
+    if (n.state === 2 && t - n.endT > 0.35) continue;
+    if (d < -0.6) continue;
+    const z = noteZ(n, t, run);
+    const P = localToGame(n.tx, n.ty, z);
+    const p = proj(P);
+    if (p.z <= 0.15) continue;
+    vis.push({ n, p, z });
+  }
+  vis.sort((a, b) => b.z - a.z);
+  for (const v of vis) {
+    const { n, p } = v, r = f * NOTE_R / p.z;
+    let alpha = 1, color = n.color;
+    if (n.state === 2) { alpha = 0.55 * (1 - (t - n.endT) / 0.35); color = C.dust; }
+    else if (t < n.time) {
+      const tail = proj(localToGame(n.tx, n.ty, v.z + 3));
+      if (tail.z > 0.15) {
+        cx.strokeStyle = n.color; cx.globalAlpha = 0.28; cx.lineCap = 'round'; cx.lineWidth = Math.max(2, r * 0.45);
+        cx.beginPath(); cx.moveTo(tail.x, tail.y); cx.lineTo(p.x, p.y); cx.stroke();
+        cx.globalAlpha = 1;
+      }
+      alpha = clamp(1 - (v.z - (ZFAR - 8)) / 8, 0, 1);
+    }
+    drawNote(p.x, p.y, r, color, alpha);
+  }
+
+  // 画面外のノーツを矢印で知らせる
+  for (const n of G.notes) {
+    if (n.state !== 0) continue;
+    const d = n.time - t;
+    if (d > 0.9) break;
+    if (d < -song.win) continue;
+    const g = localToGame(n.dir[0], n.dir[1], n.dir[2]);
+    const a = dot(g, B.right), b = dot(g, B.up), z = dot(g, B.fwd);
+    let sx = W / 2 + f * a / (z > 0.05 ? z : 1e-6), sy = H / 2 - f * b / (z > 0.05 ? z : 1e-6);
+    if (z > 0.05 && sx > 30 && sx < W - 30 && sy > 60 && sy < H - 30) continue;
+    let dx = a, dy = -b; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+    const m = 38, k = Math.min((W / 2 - m) / (Math.abs(dx) || 1e-6), (H / 2 - m) / (Math.abs(dy) || 1e-6));
+    const px = W / 2 + dx * k, py = H / 2 + dy * k, ang = Math.atan2(dy, dx);
+    cx.save(); cx.translate(px, py); cx.rotate(ang);
+    cx.globalAlpha = 0.5 + 0.5 * (1 - clamp(d, 0, 0.9) / 0.9);
+    cx.fillStyle = n.color; cx.strokeStyle = C.ink; cx.lineWidth = 4; cx.lineJoin = 'round';
+    cx.beginPath(); cx.moveTo(16, 0); cx.lineTo(-10, -14); cx.lineTo(-10, 14); cx.closePath(); cx.stroke(); cx.fill();
+    cx.restore(); cx.globalAlpha = 1;
+  }
+
+  // パーティクル
+  for (let i = G.particles.length - 1; i >= 0; i--) {
+    const q = G.particles[i];
+    q.life -= dt;
+    if (q.life <= 0) { G.particles.splice(i, 1); continue; }
+    const k = q.life / q.max;
+    if (q.ring) {
+      cx.strokeStyle = q.color; cx.lineWidth = 8 * k; cx.globalAlpha = k;
+      cx.beginPath(); cx.arc(q.x, q.y, (1 - k) * 110 + 20, 0, TAU); cx.stroke();
+    } else {
+      q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 300 * dt;
+      cx.fillStyle = q.color; cx.globalAlpha = k;
+      cx.beginPath(); cx.arc(q.x, q.y, q.r * k + 1, 0, TAU); cx.fill();
+    }
+    cx.globalAlpha = 1;
+  }
+
+  // 受け止める輪（画面中央）
+  const rg = f * Math.tan(rad(song.gdeg)), rp = f * Math.tan(rad(song.pdeg)), sc = 1 + 0.03 * pulse;
+  if (G.flash) {
+    G.flash.t -= dt;
+    if (G.flash.t <= 0) G.flash = null;
+    else { cx.fillStyle = G.flash.color; cx.globalAlpha = G.flash.t / 0.28 * 0.4; cx.beginPath(); cx.arc(W / 2, H / 2, rg * sc, 0, TAU); cx.fill(); cx.globalAlpha = 1; }
+  }
+  cx.lineWidth = 9; cx.strokeStyle = C.ink;
+  cx.beginPath(); cx.arc(W / 2, H / 2, rg * sc, 0, TAU); cx.stroke();
+  cx.lineWidth = 4.5; cx.strokeStyle = C.paper;
+  cx.beginPath(); cx.arc(W / 2, H / 2, rg * sc, 0, TAU); cx.stroke();
+  cx.lineWidth = 2.5; cx.strokeStyle = 'rgba(255,246,230,.55)'; cx.setLineDash([6, 8]);
+  cx.beginPath(); cx.arc(W / 2, H / 2, rp, 0, TAU); cx.stroke(); cx.setLineDash([]);
+  cx.fillStyle = C.paper; cx.strokeStyle = C.ink; cx.lineWidth = 3;
+  cx.beginPath(); cx.arc(W / 2, H / 2, 5, 0, TAU); cx.fill(); cx.stroke();
+}
+
+/* =====================================================
+   メインループ
+   ===================================================== */
+function frame(ts) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (ts - (G.last || ts)) / 1000);
+  G.last = ts;
+  if (G.state !== 'playing' || !G.run) return;
+  updateInput(dt);
+  const t = gameTime(), run = G.run;
+  judge(t);
+  draw(t, dt);
+  $('#progress i').style.width = clamp(t / run.totalDur, 0, 1) * 100 + '%';
+  const bi = Math.floor(t / run.beat);
+  if (bi !== G.lastBeat) {
+    G.lastBeat = bi;
+    if (bi >= 4 && bi <= 6) popText($('#count'), String(7 - bi));
+    else if (bi === 7) popText($('#count'), 'GO!');
+  }
+  if (t > run.totalDur) finish();
+}
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  view.W = window.innerWidth; view.H = window.innerHeight;
+  stage.width = Math.round(view.W * dpr); stage.height = Math.round(view.H * dpr);
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  view.f = (view.H / 2) / Math.tan(rad(VFOV / 2));
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (coarse && view.W > view.H && G.state === 'playing') pause();
+}
+window.addEventListener('resize', resize);
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+/* =====================================================
+   ボタン
+   ===================================================== */
+$('#btn-start').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true; btn.textContent = 'じゅんび中…';
+  const motionP = askMotion();      // iPhone ではタップ直後に許可を求める必要があります
+  initAudio(); ac.resume();
+  const granted = await motionP;
+  await setupMotion(granted);
+  await setupCamera();
+  btn.disabled = false; btn.textContent = 'はじめる';
+  G.state = 'select';
+  renderSongs();
+  show('screen-select');
+});
+$('#btn-retry').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const p = askMotion();
+  const ok = await p;
+  await setupMotion(ok);
+  await setupCamera();
+  btn.disabled = false;
+  renderSongs();
+});
+$('#btn-ready-back').addEventListener('click', () => show('screen-select'));
+$('#btn-go').addEventListener('click', startRun);
+$('#btn-pause').addEventListener('click', pause);
+$('#btn-resume').addEventListener('click', resume);
+$('#btn-recenter').addEventListener('click', (e) => {
+  calibrate();
+  const b = e.currentTarget, old = b.textContent;
+  b.textContent = '合わせました'; setTimeout(() => { b.textContent = old; }, 1200);
+});
+$('#btn-quit').addEventListener('click', quit);
+$('#btn-again').addEventListener('click', () => { hideAll(); openReady(G.song); });
+$('#btn-songs').addEventListener('click', () => { G.state = 'select'; renderSongs(); show('screen-select'); });
+
+resize();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
