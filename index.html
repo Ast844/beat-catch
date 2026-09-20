@@ -270,8 +270,9 @@ const C = { ink: '#12143a', paper: '#fff6e6', tomato: '#ff5a3c', sun: '#ffc82e',
 const COLS3 = [C.tomato, C.sun, C.cobalt];
 
 // 空間の設定: ノーツは正面 ZHIT メートル先の「パッド」に向かって飛んできます
-const ZHIT = 2.2, ZFAR = 32, NOTE_R = 0.2, VFOV = 76;
+const ZHIT = 2.2, ZFAR = 32, NOTE_R = 0.25, VFOV = 90;
 const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const SPAWN_Y = Math.tan(rad(32)) * ZFAR;   // 奥の出発点は、画面の下のほう
 const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
 /* =====================================================
@@ -299,8 +300,8 @@ const SONGS = [
     ],
     drums: { kick: [0, 4, 8, 12], snare: [4, 12], hat: [2, 6, 10, 14], open: [] },
     bass: [0, 8],
-    ringR: 16,
-    approach: 3.0, win: 0.20, pw: 0.09, pdeg: 5, gdeg: 8.5,
+    ringR: 21,
+    approach: 3.0, win: 0.20, pw: 0.09, pdeg: 6.5, gdeg: 11,
     seed: 7, stay: 0.3, turn: 0.15, jump: 0, jumpMax: 2,
   },
   {
@@ -315,8 +316,8 @@ const SONGS = [
     ],
     drums: { kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], open: [14] },
     bass: [0, 6, 8, 14],
-    ringR: 15.5,
-    approach: 2.6, win: 0.16, pw: 0.07, pdeg: 4.3, gdeg: 7.5,
+    ringR: 21,
+    approach: 2.6, win: 0.16, pw: 0.07, pdeg: 5.5, gdeg: 10,
     seed: 23, stay: 0.2, turn: 0.25, jump: 0.15, jumpMax: 2,
   },
   {
@@ -331,8 +332,8 @@ const SONGS = [
     ],
     drums: { kick: [0, 4, 8, 10, 12], snare: [4, 12], hat: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], open: [6, 14] },
     bass: [0, 3, 6, 8, 11, 14, 15],
-    ringR: 15,
-    approach: 2.2, win: 0.13, pw: 0.06, pdeg: 3.5, gdeg: 6.5,
+    ringR: 21,
+    approach: 2.2, win: 0.13, pw: 0.06, pdeg: 4.5, gdeg: 8.5,
     seed: 41, stay: 0.2, turn: 0.3, jump: 0.3, jumpMax: 3,
   },
 ];
@@ -891,6 +892,12 @@ function noteZ(n, t, run) {
   return Math.max(1.0, ZHIT - (t - n.time) * speed);
 }
 
+// ノーツの通り道: 奥の「下」から出て、斜めに上がりながらパッドの位置に着く
+function notePos(n, Z) {
+  const w = clamp((ZFAR - Z) / (ZFAR - ZHIT), 0, 1.1);
+  return [n.tx * (0.3 + 0.7 * w), -SPAWN_Y * (1 - w) + n.ty * w];
+}
+
 function drawNote(x, y, r, color, alpha) {
   cx.globalAlpha = alpha;
   cx.fillStyle = 'rgba(18,20,58,.55)';
@@ -944,10 +951,11 @@ function draw(t, dt) {
 
   // パッドをつなぐ円（打点の位置）
   const ringPath = (Z) => {
+    const w = clamp((ZFAR - Z) / (ZFAR - ZHIT), 0, 1.05), wx = 0.3 + 0.7 * w, wy0 = -SPAWN_Y * (1 - w);
     let started = false;
     for (let i = 0; i <= run.ring.length; i++) {
       const q = run.ring[i % run.ring.length];
-      const p = proj(localToGame(q[0], q[1], Z));
+      const p = proj(localToGame(q[0] * wx, wy0 + q[1] * w, Z));
       if (p.z <= 0.1) { started = false; continue; }
       if (!started) { cx.moveTo(p.x, p.y); started = true; } else cx.lineTo(p.x, p.y);
     }
@@ -969,10 +977,10 @@ function draw(t, dt) {
   cx.globalAlpha = 1;
 
   // 各パッドへ続く道すじ（奥の一点から伸びる線）
-  const c0 = proj(localToGame(0, 0, ZFAR));
   cx.lineCap = 'round';
   for (const pad of run.pads) {
     const p = proj(localToGame(pad.tx, pad.ty, ZHIT));
+    const c0 = proj(localToGame(pad.tx * 0.3, -SPAWN_Y, ZFAR));
     if (p.z <= 0.1 || c0.z <= 0.1) continue;
     const a = act[pad.key] || 0;
     cx.strokeStyle = a > 0.05 ? pad.color : C.paper;
@@ -1005,7 +1013,8 @@ function draw(t, dt) {
     if (n.state === 2 && t - n.endT > 0.35) continue;
     if (n.state !== 1 && d < -0.6) continue;
     const z = n.state === 1 ? ZHIT + (n.hitZ - ZHIT) * (1 - Math.min(1, (t - n.endT) / 0.08)) : noteZ(n, t, run);
-    const p = proj(localToGame(n.tx, n.ty, z));
+    const q = notePos(n, z);
+    const p = proj(localToGame(q[0], q[1], z));
     if (p.z <= 0.15) continue;
     vis.push({ n, p, z });
   }
@@ -1020,7 +1029,8 @@ function draw(t, dt) {
     let alpha = 1, color = n.color;
     if (n.state === 2) { alpha = 0.55 * (1 - (t - n.endT) / 0.35); color = C.dust; }
     else {
-      const tail = proj(localToGame(n.tx, n.ty, v.z + 4));            // 奥に伸びる尾
+      const tq = notePos(n, v.z + 4);
+      const tail = proj(localToGame(tq[0], tq[1], v.z + 4));            // 来た道に伸びる尾
       if (tail.z > 0.15) {
         cx.strokeStyle = n.color; cx.globalAlpha = 0.3; cx.lineCap = 'round'; cx.lineWidth = Math.max(2, r * 0.5);
         cx.beginPath(); cx.moveTo(tail.x, tail.y); cx.lineTo(p.x, p.y); cx.stroke();
