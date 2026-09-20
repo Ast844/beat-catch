@@ -61,7 +61,7 @@
   #progress { position: absolute; left: 0; right: 0; top: env(safe-area-inset-top, 0px); height: 6px; background: rgba(255, 246, 230, .28); }
   #progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--tomato), var(--sun)); }
   .hud-row { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 12px; }
-  #score { font: 400 28px/1.1 var(--font-display); color: var(--paper); font-variant-numeric: tabular-nums; }
+  #score { font: 400 28px/1.1 var(--font-display); color: var(--paper); font-variant-numeric: tabular-nums; transform-origin: left center; }
   #btn-pause {
     pointer-events: auto; width: 46px; height: 46px; border-radius: 50%;
     border: 3px solid var(--ink); background: var(--paper); box-shadow: 0 4px 0 var(--ink);
@@ -71,6 +71,7 @@
   #combo { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 66px); text-align: center; font: 400 46px/1 var(--font-display); color: var(--sun); }
   #combo small { font: 700 14px var(--font-body); margin-left: 6px; color: var(--paper); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
   #judge { position: absolute; left: 0; right: 0; top: 27%; text-align: center; font: 400 40px/1 var(--font-display); opacity: 0; }
+  #milestone { position: absolute; left: 0; right: 0; top: 17%; text-align: center; font: 400 36px/1 var(--font-display); color: var(--sun); opacity: 0; }
   #count { position: absolute; left: 0; right: 0; top: 38%; text-align: center; font: 400 96px/1 var(--font-display); color: var(--paper); opacity: 0; }
 
   /* ---------- Screens ---------- */
@@ -161,6 +162,7 @@
   </div>
   <div id="combo" class="stroke"></div>
   <div id="judge" class="stroke"></div>
+  <div id="milestone" class="stroke"></div>
   <div id="count" class="stroke"></div>
 </div>
 
@@ -269,6 +271,8 @@ const COLS4 = [C.tomato, C.sun, C.mint, C.cobalt];
 
 // 空間の設定: ノーツは正面 ZHIT メートル先の「パッド」に向かって飛んできます
 const ZHIT = 2.2, ZFAR = 34, NOTE_R = 0.3, VFOV = 68;
+const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
 /* =====================================================
    曲データ（オリジナル曲をブラウザ内で生成して鳴らします）
@@ -490,16 +494,39 @@ function vPad(t, freqs, dur) {
 }
 function vBlip(freq, kind) {
   if (!ac || !out) return;
-  const t = ac.currentTime + 0.005;
-  const o = ac.createOscillator(), g = ac.createGain();
+  const t = ac.currentTime + 0.003;
   if (kind === 'miss') {
+    const o = ac.createOscillator(), g = ac.createGain();
     o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(80, t + 0.12);
     g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-  } else {
-    o.type = 'sine'; o.frequency.setValueAtTime(freq * 2, t);
-    g.gain.setValueAtTime(kind === 'perfect' ? 0.3 : 0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.16);
+    return;
   }
-  o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.2);
+  const perfect = kind === 'perfect';
+  // 1) 低い「ドン」: 受け止めた手応え
+  const k = ac.createOscillator(), kg = ac.createGain();
+  k.type = 'sine';
+  k.frequency.setValueAtTime(perfect ? 170 : 140, t); k.frequency.exponentialRampToValueAtTime(55, t + 0.1);
+  kg.gain.setValueAtTime(perfect ? 0.55 : 0.38, t); kg.gain.exponentialRampToValueAtTime(0.001, t + 0.17);
+  k.connect(kg); kg.connect(out); k.start(t); k.stop(t + 0.19);
+  // 2) 高い「カチッ」
+  vNoise(t, 0.05, 'highpass', 3500, perfect ? 0.3 : 0.18);
+  // 3) メロディの音程で弾む音
+  [[freq * 2, 'triangle', 0.26], [freq * 4, 'sine', 0.1]].forEach(([f, type, v]) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.26);
+  });
+  // 4) PERFECT だけ「キラッ」と上がる2音
+  if (perfect) {
+    [[freq * 3, 0.05, 0.14], [freq * 4, 0.1, 0.12]].forEach(([f, dl, v]) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(f, t + dl);
+      g.gain.setValueAtTime(0.0001, t + dl); g.gain.exponentialRampToValueAtTime(v, t + dl + 0.005); g.gain.exponentialRampToValueAtTime(0.001, t + dl + 0.2);
+      o.connect(g); g.connect(out); o.start(t + dl); o.stop(t + dl + 0.22);
+    });
+  }
 }
 
 function playStep(g, t) {
@@ -656,6 +683,7 @@ function renderSongs() {
   $('#status').textContent = `${sensorText}。${camText}。`;
   $('#btn-retry').hidden = S.mode === 'gyro';
   $('#btn-haptic').textContent = Haptic.on ? '振動：オン' : '振動：オフ';
+  $('#btn-haptic').hidden = !navigator.vibrate;
 }
 
 function openReady(song) {
@@ -690,7 +718,7 @@ function startRun() {
   G.run = { song, step, beat: step * 4, t0, next: 0, totalSteps: song.bars * 16, totalDur, approach: song.approach, leadMap, pads: [...seen.values()], bus: b.bus };
   G.notes = notes;
   G.score = 0; G.combo = 0; G.maxCombo = 0; G.counts = { perfect: 0, great: 0, miss: 0 };
-  G.particles = []; G.flash = null; G.lastBeat = -1;
+  G.particles = []; G.flash = null; G.edge = null; G.shake = null; G.lastBeat = -1;
   $('#score').textContent = '0'; $('#combo').textContent = ''; $('#progress i').style.width = '0';
   hideAll();
   document.body.classList.add('playing');
@@ -757,48 +785,62 @@ function aimAngle(n, B) {
   return Math.acos(clamp(dot(d, B.fwd), -1, 1)) * 180 / Math.PI;
 }
 
-function popText(el, text, color) {
+function popText(el, text, color, peak) {
   el.textContent = text;
   if (color) el.style.color = color;
+  const pk = REDUCED ? 1.05 : (peak || 1.12);
   el.animate([
     { transform: 'scale(.6)', opacity: 0 },
-    { transform: 'scale(1.12)', opacity: 1, offset: 0.25 },
+    { transform: `scale(${pk})`, opacity: 1, offset: 0.25 },
     { transform: 'scale(1)', opacity: 1, offset: 0.7 },
     { transform: 'scale(1)', opacity: 0 },
   ], { duration: 650, easing: 'ease-out' });
 }
+function bump(el, s) {
+  if (REDUCED) return;
+  el.animate([{ transform: `scale(${s})` }, { transform: 'scale(1)' }], { duration: 170, easing: 'ease-out' });
+}
 function setCombo() {
   $('#combo').innerHTML = G.combo >= 2 ? `${G.combo}<small>コンボ</small>` : '';
+  if (G.combo >= 2) bump($('#combo'), 1.3);
 }
 
-function burst(n, big) {
+function burst(n, big, mega) {
   const B = camBasis();
   const P = localToGame(n.tx, n.ty, ZHIT);
   const cv = [dot(P, B.right), dot(P, B.up), dot(P, B.fwd)];
   if (cv[2] <= 0.1) return;
   const x = view.W / 2 + view.f * cv[0] / cv[2], y = view.H / 2 - view.f * cv[1] / cv[2];
   const cols = [n.color, C.paper, C.sun];
-  const cnt = big ? 22 : 14;
+  const cnt = mega ? 46 : big ? 32 : 18;
   for (let i = 0; i < cnt; i++) {
-    const a = Math.random() * TAU, sp = 120 + Math.random() * 260;
-    G.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.55, max: 0.55, r: 3 + Math.random() * 5, color: cols[i % 3] });
+    const a = Math.random() * TAU, sp = 140 + Math.random() * (big ? 380 : 260);
+    G.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.6, max: 0.6, r: 4 + Math.random() * (big ? 7 : 5), color: cols[i % 3] });
   }
-  G.particles.push({ x, y, vx: 0, vy: 0, life: 0.35, max: 0.35, r: 0, ring: true, color: n.color });
+  G.particles.push({ x, y, vx: 0, vy: 0, life: 0.35, max: 0.35, r: 0, ring: true, size: 1, color: n.color });
+  if (big) G.particles.push({ x, y, vx: 0, vy: 0, life: 0.5, max: 0.5, r: 0, ring: true, size: 1.7, color: C.paper });
+  if (mega) G.particles.push({ x, y, vx: 0, vy: 0, life: 0.7, max: 0.7, r: 0, ring: true, size: 3, color: C.sun });
 }
 
 function hit(n, kind, t) {
-  n.state = 1;
+  const perfect = kind === 'perfect';
+  n.state = 1; n.endT = t;
   G.counts[kind]++;
   G.combo++; G.maxCombo = Math.max(G.maxCombo, G.combo);
   const mult = Math.min(1 + Math.floor(G.combo / 10) * 0.5, 4);
-  G.score += Math.round((kind === 'perfect' ? 100 : 60) * mult);
+  G.score += Math.round((perfect ? 100 : 60) * mult);
   $('#score').textContent = G.score.toLocaleString('ja-JP');
+  bump($('#score'), 1.22);
   setCombo();
-  popText($('#judge'), kind === 'perfect' ? 'PERFECT' : 'GREAT', kind === 'perfect' ? C.sun : C.mint);
-  burst(n, kind === 'perfect');
+  popText($('#judge'), perfect ? 'PERFECT' : 'GREAT', perfect ? C.sun : C.mint, perfect ? 1.32 : 1.15);
+  const milestone = G.combo % 10 === 0;
+  burst(n, perfect || milestone, milestone);
   G.flash = { color: n.color, t: 0.28 };
+  G.edge = { color: n.color, t: 0.26, a: milestone ? 0.7 : perfect ? 0.55 : 0.34 };
+  if (!REDUCED) G.shake = { t: 0.14, amp: perfect ? 5 : 3 };
+  if (milestone) popText($('#milestone'), `${G.combo} コンボ！`, C.sun, 1.3);
   vBlip(n.freq, kind);
-  Haptic.tick(kind === 'perfect');
+  Haptic.tick(perfect);
 }
 function miss(n, t) {
   n.state = 2; n.endT = t;
@@ -863,6 +905,12 @@ function draw(t, dt) {
 
   cx.clearRect(0, 0, W, H);
   if (S.camera) { cx.fillStyle = 'rgba(18,20,58,.30)'; cx.fillRect(0, 0, W, H); }
+  cx.save();
+  if (G.shake) {
+    G.shake.t -= dt;
+    if (G.shake.t <= 0) G.shake = null;
+    else { const k = G.shake.t / 0.14; cx.translate((Math.random() * 2 - 1) * G.shake.amp * k, (Math.random() * 2 - 1) * G.shake.amp * k); }
+  }
 
   // 空間に浮かぶ星（向きの変化が分かりやすくなります）
   cx.fillStyle = C.paper;
@@ -903,10 +951,10 @@ function draw(t, dt) {
   const vis = [];
   for (const n of G.notes) {
     const d = n.time - t;
-    if (n.state === 1) continue;
     if (d > run.approach) break;
+    if (n.state === 1 && t - n.endT > 0.22) continue;
     if (n.state === 2 && t - n.endT > 0.35) continue;
-    if (d < -0.6) continue;
+    if (n.state !== 1 && d < -0.6) continue;
     const z = noteZ(n, t, run);
     const P = localToGame(n.tx, n.ty, z);
     const p = proj(P);
@@ -916,6 +964,11 @@ function draw(t, dt) {
   vis.sort((a, b) => b.z - a.z);
   for (const v of vis) {
     const { n, p } = v, r = f * NOTE_R / p.z;
+    if (n.state === 1) {              // 受け止めた瞬間: ふくらんで消える
+      const k = (t - n.endT) / 0.22;
+      drawNote(p.x, p.y, r * (1 + k * 0.9), n.color, 1 - k);
+      continue;
+    }
     let alpha = 1, color = n.color;
     if (n.state === 2) { alpha = 0.55 * (1 - (t - n.endT) / 0.35); color = C.dust; }
     else if (t < n.time) {
@@ -958,7 +1011,7 @@ function draw(t, dt) {
     const k = q.life / q.max;
     if (q.ring) {
       cx.strokeStyle = q.color; cx.lineWidth = 8 * k; cx.globalAlpha = k;
-      cx.beginPath(); cx.arc(q.x, q.y, (1 - k) * 110 + 20, 0, TAU); cx.stroke();
+      cx.beginPath(); cx.arc(q.x, q.y, (1 - k) * 110 * (q.size || 1) + 20, 0, TAU); cx.stroke();
     } else {
       q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 300 * dt;
       cx.fillStyle = q.color; cx.globalAlpha = k;
@@ -967,12 +1020,27 @@ function draw(t, dt) {
     cx.globalAlpha = 1;
   }
 
+  // 受け止めた瞬間の画面ふちの光
+  if (G.edge) {
+    G.edge.t -= dt;
+    if (G.edge.t <= 0) G.edge = null;
+    else {
+      const k = G.edge.t / 0.26, m = Math.max(W, H);
+      const gr = cx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, m * 0.7);
+      gr.addColorStop(0, rgba(G.edge.color, 0));
+      gr.addColorStop(1, rgba(G.edge.color, 1));
+      cx.globalAlpha = G.edge.a * k * (REDUCED ? 0.5 : 1);
+      cx.fillStyle = gr; cx.fillRect(0, 0, W, H);
+      cx.globalAlpha = 1;
+    }
+  }
+
   // 受け止める輪（画面中央）
-  const rg = f * Math.tan(rad(song.gdeg)), rp = f * Math.tan(rad(song.pdeg)), sc = 1 + 0.03 * pulse;
+  const rg = f * Math.tan(rad(song.gdeg)), rp = f * Math.tan(rad(song.pdeg)), sc = 1 + 0.03 * pulse + (G.flash ? 0.16 * G.flash.t / 0.28 : 0);
   if (G.flash) {
     G.flash.t -= dt;
     if (G.flash.t <= 0) G.flash = null;
-    else { cx.fillStyle = G.flash.color; cx.globalAlpha = G.flash.t / 0.28 * 0.4; cx.beginPath(); cx.arc(W / 2, H / 2, rg * sc, 0, TAU); cx.fill(); cx.globalAlpha = 1; }
+    else { cx.fillStyle = G.flash.color; cx.globalAlpha = G.flash.t / 0.28 * 0.55; cx.beginPath(); cx.arc(W / 2, H / 2, rg * sc, 0, TAU); cx.fill(); cx.globalAlpha = 1; }
   }
   cx.lineWidth = 9; cx.strokeStyle = C.ink;
   cx.beginPath(); cx.arc(W / 2, H / 2, rg * sc, 0, TAU); cx.stroke();
@@ -982,6 +1050,7 @@ function draw(t, dt) {
   cx.beginPath(); cx.arc(W / 2, H / 2, rp, 0, TAU); cx.stroke(); cx.setLineDash([]);
   cx.fillStyle = C.paper; cx.strokeStyle = C.ink; cx.lineWidth = 3;
   cx.beginPath(); cx.arc(W / 2, H / 2, 5, 0, TAU); cx.fill(); cx.stroke();
+  cx.restore();
 }
 
 /* =====================================================
