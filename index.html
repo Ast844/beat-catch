@@ -46,6 +46,11 @@
     overscroll-behavior: none;
   }
 
+  #test { position: fixed; inset: 0; z-index: 4; display: none; pointer-events: none; }
+  body.testing #test { display: block; }
+  #test-info { position: absolute; left: calc(14px + env(safe-area-inset-left, 0px)); top: 12px; margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(18, 20, 58, .78); color: var(--paper); font: 500 13px/1.6 ui-monospace, Menlo, monospace; white-space: pre; }
+  #test-msg { position: absolute; left: 0; right: 0; bottom: 64px; text-align: center; padding: 0 24px; font-size: 15px; font-weight: 700; text-shadow: 0 2px 0 var(--ink); }
+  .test-btns { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; gap: 14px; justify-content: center; pointer-events: auto; }
   .rot-only { display: none; }
   body.rotated .rot-only { display: block; }
   #root { position: fixed; left: 0; top: 0; width: 100%; height: 100%; }
@@ -244,9 +249,16 @@
     <p class="status" id="status"></p>
     <div class="cards" id="cards"></div>
     <button class="btn ghost" id="btn-haptic"></button>
+    <button class="btn ghost" id="btn-test" hidden>センサー確認</button>
     <button class="btn ghost" id="btn-retry" hidden>センサーをもう一度試す</button>
   </div>
 </section>
+
+<div id="test">
+  <pre id="test-info"></pre>
+  <div id="test-msg">スマホを右に向けると、円が左へ動けば正常です。上に向けると、円が下へ動けば正常です。</div>
+  <div class="test-btns"><button class="btn ghost" id="btn-test-flip">上下左右が逆のとき押す</button><button class="btn ghost" id="btn-test-recenter">正面を合わせ直す</button><button class="btn ghost" id="btn-test-back">もどる</button></div>
+</div>
 
 <section class="screen" id="screen-ready">
   <div class="inner">
@@ -432,7 +444,7 @@ function buildMap(song) {
    ===================================================== */
 const G = { state: 'title', song: null, run: null, notes: [], score: 0, combo: 0, maxCombo: 0,
             counts: { perfect: 0, great: 0, miss: 0 }, particles: [], flash: null, padActive: {}, last: 0, lastBeat: -1 };
-const S = { mode: 'drag', seen: false, alpha: 0, beta: 0, gamma: 0, yaw0: 0, pitch0: 0, fbYaw: 0, fbPitch: 0, listening: false, camera: false };
+const S = { flip: false, scrAng: null, mode: 'drag', seen: false, alpha: 0, beta: 0, gamma: 0, yaw0: 0, pitch0: 0, fbYaw: 0, fbPitch: 0, listening: false, camera: false };
 const keys = {};
 const view = { W: 360, H: 640, f: 500, rot: 0 };   // rot: 画面が縦のまま固定されているとき、表示を90/270度回す
 const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
@@ -619,24 +631,46 @@ function onOri(e) {
 }
 
 // 画面の向き（縦=0, 横=90 または 270）。センサーの軸はスマホ本体に固定なので、画面の向きぶん回して使います
-function screenAngle() {
-  if (view.rot) return view.rot * Math.PI / 180;      // 画面が回らないときは、表示を回した向きを使う
-  const a = (window.screen && screen.orientation && typeof screen.orientation.angle === 'number')
-    ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
-  return a * Math.PI / 180;
-}
-function rawBasis() {
+// スマホ本体の軸（右=dx, 上=dy, カメラの向き=fwd）を、傾きセンサーの値から求める
+function deviceAxes() {
   const a = rad(S.alpha), b = rad(S.beta), g = rad(S.gamma);
   const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), cg = Math.cos(g), sg = Math.sin(g);
   const R00 = ca * cg - sa * sb * sg, R01 = -sa * cb, R02 = ca * sg + sa * sb * cg;
   const R10 = sa * cg + ca * sb * sg, R11 = ca * cb, R12 = sa * sg - ca * sb * cg;
   const R20 = -cb * sg, R21 = sb, R22 = cb * cg;
-  const dx = [R00, R10, R20], dy = [R01, R11, R21];           // スマホ本体の右・上
+  return { dx: [R00, R10, R20], dy: [R01, R11, R21], fwd: [-R02, -R12, -R22] };
+}
+// 画面の「上」が、重力と反対（本当の上）を向いている向きを探す。
+// ブラウザが返す画面の向きの値（機種やiOSのバージョンでちがうことがある）には頼らず、実際の持ち方から決めます。
+function inferScreenAngle() {
+  const { dx, dy } = deviceAxes();
+  let best = null, bz = 0.6;
+  [0, 90, 180, 270].forEach((deg) => {
+    const o = rad(deg), z = Math.sin(o) * dx[2] + Math.cos(o) * dy[2];
+    if (z > bz) { bz = z; best = deg; }
+  });
+  return best;
+}
+function screenAngle() {
+  const fl = S.flip ? Math.PI : 0;                            // 上下左右が逆に感じるときの手動切り替え
+  if (S.scrAng != null) return rad(S.scrAng) + fl;                 // 持ち方から決めた向き（遊んでいる間は固定）
+  if (view.rot) return view.rot * Math.PI / 180 + fl;
+  const a = (window.screen && screen.orientation && typeof screen.orientation.angle === 'number')
+    ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+  return a * Math.PI / 180 + fl;
+}
+function refreshScreenAngle() {
+  if (S.mode !== 'gyro') return;
+  const v = inferScreenAngle();
+  if (v !== null) S.scrAng = v;
+}
+function rawBasis() {
+  const { dx, dy, fwd } = deviceAxes();
   const o = screenAngle(), c = Math.cos(o), s = Math.sin(o);
   return {
     right: dx.map((v, i) => c * v - s * dy[i]),               // 画面の右
     up: dx.map((v, i) => s * v + c * dy[i]),                  // 画面の上
-    fwd: [-R02, -R12, -R22],                                  // カメラ（背面）の向き
+    fwd,                                                      // カメラ（背面）の向き
   };
 }
 // 世界座標(東,北,上) → ゲーム座標(右,上,前)
@@ -654,6 +688,7 @@ function camBasis() {
 }
 function calibrate() {
   if (S.mode === 'gyro') {
+    refreshScreenAngle();
     const b = rawBasis();
     let h = [b.fwd[0], b.fwd[1]];
     if (Math.hypot(h[0], h[1]) < 0.35) h = [b.up[0], b.up[1]];
@@ -751,6 +786,7 @@ function renderSongs() {
   const camText = S.camera ? 'カメラの映像を背景に使います' : 'カメラは使わず、仮想の背景で遊びます';
   $('#status').textContent = `${sensorText}。${camText}。`;
   $('#btn-retry').hidden = S.mode === 'gyro';
+  $('#btn-test').hidden = S.mode !== 'gyro';
   $('#btn-haptic').textContent = Haptic.on ? '振動：オン' : '振動：オフ';
   $('#btn-haptic').hidden = !navigator.vibrate;
 }
@@ -1171,10 +1207,72 @@ function draw(t, dt) {
 /* =====================================================
    メインループ
    ===================================================== */
+/* センサー確認: 円のパッドだけを表示して、動きが正しいか目で確かめる画面 */
+const TEST_LABELS = { 0: '上', 2: '右', 7: '左', 4: '下', 5: '下' };
+let testInfoAt = 0;
+try { S.flip = localStorage.getItem('beatcatch-land:flip') === '1'; } catch (e) {}
+function drawTest(ts) {
+  const { W, H, f } = view, B = camBasis();
+  const proj = (P) => { const a = dot(P, B.right), b = dot(P, B.up), z = dot(P, B.fwd); return { x: W / 2 + f * a / z, y: H / 2 - f * b / z, z }; };
+  cx.clearRect(0, 0, W, H);
+  if (S.camera) { cx.fillStyle = 'rgba(18,20,58,.30)'; cx.fillRect(0, 0, W, H); }
+  cx.fillStyle = C.paper;
+  for (const s of STARS) {
+    const p = proj(s.v);
+    if (p.z < 0.15) continue;
+    cx.globalAlpha = 0.35 + s.s * 0.35;
+    cx.beginPath(); cx.arc(p.x, p.y, 1.2 + s.s * 1.4, 0, TAU); cx.fill();
+  }
+  cx.globalAlpha = 1;
+  cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  for (let i = 0; i < PADS; i++) {
+    const a = padAngles(21, i);
+    const p = proj(localToGame(Math.tan(rad(a.yaw)) * ZHIT, Math.tan(rad(a.pitch)) * ZHIT, ZHIT));
+    if (p.z <= 0.1) continue;
+    const r = f * NOTE_R / p.z;
+    cx.lineWidth = 4; cx.strokeStyle = COLS3[i % 3]; cx.setLineDash([7, 7]);
+    cx.beginPath(); cx.arc(p.x, p.y, r * 1.06, 0, TAU); cx.stroke(); cx.setLineDash([]);
+    if (TEST_LABELS[i]) {
+      cx.font = `700 ${Math.round(r * 0.9)}px sans-serif`;
+      cx.lineWidth = 5; cx.strokeStyle = C.ink; cx.strokeText(TEST_LABELS[i], p.x, p.y);
+      cx.fillStyle = C.paper; cx.fillText(TEST_LABELS[i], p.x, p.y);
+    }
+  }
+  const rg = f * Math.tan(rad(10));
+  cx.lineWidth = 9; cx.strokeStyle = C.ink; cx.beginPath(); cx.arc(W / 2, H / 2, rg, 0, TAU); cx.stroke();
+  cx.lineWidth = 4.5; cx.strokeStyle = C.paper; cx.beginPath(); cx.arc(W / 2, H / 2, rg, 0, TAU); cx.stroke();
+  cx.fillStyle = C.paper; cx.strokeStyle = C.ink; cx.lineWidth = 3;
+  cx.beginPath(); cx.arc(W / 2, H / 2, 5, 0, TAU); cx.fill(); cx.stroke();
+  if (ts - testInfoAt > 120) {
+    testInfoAt = ts;
+    const yaw = Math.atan2(B.fwd[0], B.fwd[2]) * 180 / Math.PI, pitch = Math.asin(clamp(B.fwd[1], -1, 1)) * 180 / Math.PI - S.pitch0 * 180 / Math.PI;
+    const f0 = (v) => (v >= 0 ? '+' : '') + Math.round(v);
+    $('#test-info').textContent =
+      `操作　　: ${S.mode === 'gyro' ? 'センサー' : 'ドラッグ'}\n` +
+      `画面の向き: ${S.scrAng == null ? '?' : S.scrAng}°  (表示の回転 ${view.rot}°)\n` +
+      `α ${f0(S.alpha)}  β ${f0(S.beta)}  γ ${f0(S.gamma)}\n` +
+      `向き　　: 左右 ${f0(yaw)}°  上下 ${f0(pitch)}°\n` +
+      `反転　　: ${S.flip ? 'オン' : 'オフ'}`;
+  }
+}
+function openTest() {
+  calibrate();
+  G.state = 'test';
+  hideAll();
+  document.body.classList.add('testing');
+}
+function closeTest() {
+  document.body.classList.remove('testing');
+  G.state = 'select';
+  show('screen-select');
+}
+
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (ts - (G.last || ts)) / 1000);
   G.last = ts;
+  if (G.state !== 'playing') refreshScreenAngle();
+  if (G.state === 'test') { updateInput(dt); drawTest(ts); return; }
   if (G.state !== 'playing' || !G.run) return;
   updateInput(dt);
   const t = gameTime(), run = G.run;
@@ -1245,6 +1343,18 @@ $('#btn-haptic').addEventListener('click', (e) => {
   Haptic.set(!Haptic.on);
   e.currentTarget.textContent = Haptic.on ? '振動：オン' : '振動：オフ';
   Haptic.tick(true);              // 押した瞬間に試し振動
+});
+$('#btn-test').addEventListener('click', openTest);
+$('#btn-test-flip').addEventListener('click', () => {
+  S.flip = !S.flip;
+  try { localStorage.setItem('beatcatch-land:flip', S.flip ? '1' : '0'); } catch (e) {}
+  calibrate();
+});
+$('#btn-test-back').addEventListener('click', closeTest);
+$('#btn-test-recenter').addEventListener('click', (e) => {
+  calibrate();
+  const b = e.currentTarget, old = b.textContent;
+  b.textContent = '合わせました'; setTimeout(() => { b.textContent = old; }, 1200);
 });
 $('#btn-ready-back').addEventListener('click', () => show('screen-select'));
 $('#btn-go').addEventListener('click', startRun);
