@@ -46,6 +46,9 @@
     overscroll-behavior: none;
   }
 
+  .rot-only { display: none; }
+  body.rotated .rot-only { display: block; }
+  #root { position: fixed; left: 0; top: 0; width: 100%; height: 100%; }
   #cam { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; z-index: 0; }
   #cam.on { display: block; }
   #stage { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; touch-action: none; }
@@ -145,8 +148,6 @@
   .grid strong { display: block; font: 400 22px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
   .row-btns { display: flex; flex-direction: column; gap: 14px; align-items: center; width: 100%; }
 
-  .turn { position: fixed; inset: 0; z-index: 9; display: none; place-items: center; background: rgba(18, 20, 58, .96); text-align: center; padding: 24px; font: 400 24px/1.6 var(--font-display); }
-  @media (orientation: portrait) and (pointer: coarse) { .turn { display: grid; } }
 
   /* ---------- 横向き専用レイアウト ---------- */
   #hud { padding: calc(8px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px)); }
@@ -191,12 +192,12 @@
   #screen-result .grid { grid-column: 2; grid-row: 1 / span 2; }
   #screen-result .row-btns { grid-column: 2; grid-row: 3; flex-direction: row; justify-content: center; }
 
-  .turn { font-size: 22px; }
 
   @media (prefers-reduced-motion: reduce) { .logo .row span { animation: none; } .btn, .card { transition: none; } }
 </style>
 </head>
 <body>
+<div id="root">
 <video id="cam" playsinline muted autoplay></video>
 <canvas id="stage"></canvas>
 
@@ -232,6 +233,7 @@
     <p class="lead">スマホを動かして、<br>飛んでくるビートを受け止めよう。</p>
     <button class="btn" id="btn-start">はじめる</button>
     <p class="hint">カメラとモーションセンサーを使います。<br>周りに物や人がない、広い場所で遊んでください。</p>
+    <p class="hint rot-only">画面が縦のまま回らないときは、スマホを横に倒してください。<br>逆さまに見えても、「はじめる」を押すと向きが自動で合います。</p>
     </div>
   </div>
 </section>
@@ -292,7 +294,7 @@
   </div>
 </section>
 
-<div class="turn" role="alert">スマホを横向きにして<br>遊んでください</div>
+</div>
 
 <script>
 (() => {
@@ -432,7 +434,9 @@ const G = { state: 'title', song: null, run: null, notes: [], score: 0, combo: 0
             counts: { perfect: 0, great: 0, miss: 0 }, particles: [], flash: null, padActive: {}, last: 0, lastBeat: -1 };
 const S = { mode: 'drag', seen: false, alpha: 0, beta: 0, gamma: 0, yaw0: 0, pitch0: 0, fbYaw: 0, fbPitch: 0, listening: false, camera: false };
 const keys = {};
-const view = { W: 360, H: 640, f: 500 };
+const view = { W: 360, H: 640, f: 500, rot: 0 };   // rot: 画面が縦のまま固定されているとき、表示を90/270度回す
+const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+let rotDir = 90;
 let ac = null, master = null, noiseBuf = null, out = null, fxIn = null, wakeLock = null;
 
 /* =====================================================
@@ -616,6 +620,7 @@ function onOri(e) {
 
 // 画面の向き（縦=0, 横=90 または 270）。センサーの軸はスマホ本体に固定なので、画面の向きぶん回して使います
 function screenAngle() {
+  if (view.rot) return view.rot * Math.PI / 180;      // 画面が回らないときは、表示を回した向きを使う
   const a = (window.screen && screen.orientation && typeof screen.orientation.angle === 'number')
     ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
   return a * Math.PI / 180;
@@ -701,8 +706,11 @@ let drag = null;
 stage.addEventListener('pointerdown', (e) => { if (S.mode !== 'drag') return; drag = { x: e.clientX, y: e.clientY }; try { stage.setPointerCapture(e.pointerId); } catch (_) {} });
 stage.addEventListener('pointermove', (e) => {
   if (!drag) return;
-  S.fbYaw += rad((e.clientX - drag.x) * 0.16);
-  S.fbPitch = clamp(S.fbPitch - rad((e.clientY - drag.y) * 0.16), rad(-50), rad(50));
+  let dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (view.rot === 90) { const t = dx; dx = dy; dy = -t; }
+  else if (view.rot === 270) { const t = dx; dx = -dy; dy = t; }
+  S.fbYaw += rad(dx * 0.16);
+  S.fbPitch = clamp(S.fbPitch - rad(dy * 0.16), rad(-50), rad(50));
   drag.x = e.clientX; drag.y = e.clientY;
 });
 ['pointerup', 'pointercancel'].forEach((n) => stage.addEventListener(n, () => { drag = null; }));
@@ -1184,12 +1192,24 @@ function frame(ts) {
 
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  view.W = window.innerWidth; view.H = window.innerHeight;
+  const iw = window.innerWidth, ih = window.innerHeight;
+  const root = $('#root');
+  // スマホの画面が縦のまま（向きのロックなど）でも遊べるように、表示のほうを横向きに回す
+  view.rot = (coarsePointer && iw < ih) ? rotDir : 0;
+  if (view.rot === 90) {
+    view.W = ih; view.H = iw;
+    root.style.cssText = `width:${view.W}px;height:${view.H}px;transform-origin:0 0;transform:translate(${iw}px,0) rotate(90deg)`;
+  } else if (view.rot === 270) {
+    view.W = ih; view.H = iw;
+    root.style.cssText = `width:${view.W}px;height:${view.H}px;transform-origin:0 0;transform:translate(0,${ih}px) rotate(-90deg)`;
+  } else {
+    view.W = iw; view.H = ih;
+    root.style.cssText = '';
+  }
+  document.body.classList.toggle('rotated', !!view.rot);
   stage.width = Math.round(view.W * dpr); stage.height = Math.round(view.H * dpr);
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   view.f = (view.H / 2) / Math.tan(rad(VFOV / 2));
-  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  if (coarse && view.W < view.H && G.state === 'playing') pause();
 }
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
@@ -1239,6 +1259,12 @@ $('#btn-quit').addEventListener('click', quit);
 $('#btn-again').addEventListener('click', () => { hideAll(); openReady(G.song); });
 $('#btn-songs').addEventListener('click', () => { G.state = 'select'; renderSongs(); show('screen-select'); });
 
+setInterval(() => {
+  if (!view.rot || S.mode !== 'gyro' || G.state === 'playing') return;
+  const dxz = -Math.cos(rad(S.beta)) * Math.sin(rad(S.gamma));   // スマホの右辺が上を向いている度合い
+  const want = dxz > 0.55 ? 90 : dxz < -0.55 ? 270 : rotDir;
+  if (want !== rotDir) { rotDir = want; resize(); }
+}, 250);
 resize();
 requestAnimationFrame(frame);
 })();
