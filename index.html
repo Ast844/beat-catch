@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#12143a">
 <meta name="mobile-web-app-capable" content="yes">
-<title>BEAT CATCH</title>
+<title>BEAT CATCH 横向き版</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
@@ -146,7 +146,52 @@
   .row-btns { display: flex; flex-direction: column; gap: 14px; align-items: center; width: 100%; }
 
   .turn { position: fixed; inset: 0; z-index: 9; display: none; place-items: center; background: rgba(18, 20, 58, .96); text-align: center; padding: 24px; font: 400 24px/1.6 var(--font-display); }
-  @media (orientation: landscape) and (pointer: coarse) { body.playing .turn { display: grid; } }
+  @media (orientation: portrait) and (pointer: coarse) { .turn { display: grid; } }
+
+  /* ---------- 横向き専用レイアウト ---------- */
+  #hud { padding: calc(8px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px)); }
+  #progress { left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); }
+  .hud-row { margin-top: 10px; }
+  #score { font-size: 24px; }
+  #btn-pause { width: 42px; height: 42px; }
+  #combo { transform-origin: left center; left: calc(14px + env(safe-area-inset-left, 0px)); right: auto; top: 34%; text-align: left; font-size: 40px; }
+  #judge { transform-origin: right center; left: auto; right: calc(20px + env(safe-area-inset-right, 0px)); top: 42%; text-align: right; font-size: 34px; }
+  #milestone { transform-origin: left center; left: calc(14px + env(safe-area-inset-left, 0px)); right: auto; top: 56%; text-align: left; font-size: 28px; }
+  #count { top: 30%; font-size: 78px; }
+
+  .screen { padding: calc(12px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(20px + env(safe-area-inset-left, 0px)); }
+  .inner { gap: 12px; }
+  h2 { font-size: 24px; }
+  .panel h2 { font-size: 22px; }
+  .panel p { font-size: 15px; line-height: 1.6; }
+  .lead { font-size: 16px; }
+  .hint { font-size: 13px; }
+  .btn { font-size: 19px; padding: 10px 28px; }
+  .btn.ghost { font-size: 15px; padding: 8px 20px; }
+
+  .logo { font-size: clamp(44px, 15vh, 88px); margin: 0; }
+  #screen-title .inner { flex-direction: row; width: min(100%, 780px); gap: 36px; }
+  .title-right { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+  #screen-select .inner { width: min(100%, 820px); flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; }
+  #screen-select h2, #screen-select .status, #screen-select .cards { flex-basis: 100%; }
+  .cards { flex-direction: row; gap: 12px; }
+  .card { flex: 1; min-width: 0; padding: 10px 12px 12px; }
+  .card .song { font-size: 19px; }
+  .card .meta, .card .best { font-size: 12px; }
+
+  #screen-ready .inner, #screen-pause .inner, #screen-result .inner { width: min(100%, 720px); }
+  #screen-ready .panel, #screen-pause .panel { width: min(100%, 640px); padding: 16px; gap: 10px; }
+  #screen-pause .row-btns { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+
+  #screen-result .panel { display: grid; grid-template-columns: 1fr 1.4fr; column-gap: 20px; row-gap: 8px; align-items: center; width: min(100%, 720px); padding: 16px; }
+  #screen-result .rank { grid-column: 1; grid-row: 1; justify-self: center; width: 96px; height: 96px; font-size: 62px; }
+  #res-score { grid-column: 1; grid-row: 2; font-size: 28px; }
+  #res-new { grid-column: 1; grid-row: 3; justify-self: center; }
+  #screen-result .grid { grid-column: 2; grid-row: 1 / span 2; }
+  #screen-result .row-btns { grid-column: 2; grid-row: 3; flex-direction: row; justify-content: center; }
+
+  .turn { font-size: 22px; }
 
   @media (prefers-reduced-motion: reduce) { .logo .row span { animation: none; } .btn, .card { transition: none; } }
 </style>
@@ -169,10 +214,10 @@
 
 <section class="screen on" id="screen-title">
   <div class="deco" aria-hidden="true">
-    <b style="width:150px;height:150px;background:var(--tomato);top:5%;left:-46px"></b>
-    <b style="width:92px;height:92px;background:var(--cobalt);top:15%;right:9%"></b>
-    <b style="width:220px;height:220px;background:var(--sun);bottom:-80px;right:-60px"></b>
-    <b style="width:64px;height:64px;background:var(--mint);bottom:24%;left:7%"></b>
+    <b style="width:120px;height:120px;background:var(--tomato);top:-34px;left:-30px"></b>
+    <b style="width:84px;height:84px;background:var(--cobalt);top:12%;right:6%"></b>
+    <b style="width:190px;height:190px;background:var(--sun);bottom:-70px;right:-40px"></b>
+    <b style="width:60px;height:60px;background:var(--mint);bottom:-12px;left:6%"></b>
   </div>
   <div class="inner">
     <h1 class="logo" aria-label="BEAT CATCH">
@@ -183,9 +228,11 @@
         <span style="--c:var(--sun);--r:4deg;--i:4">C</span><span style="--c:var(--cobalt);--r:-4deg;--i:5">A</span><span style="--c:var(--tomato);--r:3deg;--i:6">T</span><span style="--c:var(--mint);--r:-5deg;--i:7">C</span><span style="--c:var(--sun);--r:4deg;--i:8">H</span>
       </span>
     </h1>
+    <div class="title-right">
     <p class="lead">スマホを動かして、<br>飛んでくるビートを受け止めよう。</p>
     <button class="btn" id="btn-start">はじめる</button>
     <p class="hint">カメラとモーションセンサーを使います。<br>周りに物や人がない、広い場所で遊んでください。</p>
+    </div>
   </div>
 </section>
 
@@ -245,7 +292,7 @@
   </div>
 </section>
 
-<div class="turn" role="alert">スマホを縦向きにして<br>遊んでください</div>
+<div class="turn" role="alert">スマホを横向きにして<br>遊んでください</div>
 
 <script>
 (() => {
@@ -270,7 +317,7 @@ const C = { ink: '#12143a', paper: '#fff6e6', tomato: '#ff5a3c', sun: '#ffc82e',
 const COLS3 = [C.tomato, C.sun, C.cobalt];
 
 // 空間の設定: ノーツは正面 ZHIT メートル先の「パッド」に向かって飛んできます
-const ZHIT = 2.2, ZFAR = 32, NOTE_R = 0.25, VFOV = 90;
+const ZHIT = 2.2, ZFAR = 32, NOTE_R = 0.25, VFOV = 56;   // 横向きは画面の高さがせまいので、縦の視野は小さめ
 const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
@@ -567,13 +614,25 @@ function onOri(e) {
   S.alpha = e.alpha; S.beta = e.beta; S.gamma = e.gamma; S.seen = true;
 }
 
+// 画面の向き（縦=0, 横=90 または 270）。センサーの軸はスマホ本体に固定なので、画面の向きぶん回して使います
+function screenAngle() {
+  const a = (window.screen && screen.orientation && typeof screen.orientation.angle === 'number')
+    ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+  return a * Math.PI / 180;
+}
 function rawBasis() {
   const a = rad(S.alpha), b = rad(S.beta), g = rad(S.gamma);
   const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), cg = Math.cos(g), sg = Math.sin(g);
   const R00 = ca * cg - sa * sb * sg, R01 = -sa * cb, R02 = ca * sg + sa * sb * cg;
   const R10 = sa * cg + ca * sb * sg, R11 = ca * cb, R12 = sa * sg - ca * sb * cg;
   const R20 = -cb * sg, R21 = sb, R22 = cb * cg;
-  return { right: [R00, R10, R20], up: [R01, R11, R21], fwd: [-R02, -R12, -R22] };
+  const dx = [R00, R10, R20], dy = [R01, R11, R21];           // スマホ本体の右・上
+  const o = screenAngle(), c = Math.cos(o), s = Math.sin(o);
+  return {
+    right: dx.map((v, i) => c * v - s * dy[i]),               // 画面の右
+    up: dx.map((v, i) => s * v + c * dy[i]),                  // 画面の上
+    fwd: [-R02, -R12, -R22],                                  // カメラ（背面）の向き
+  };
 }
 // 世界座標(東,北,上) → ゲーム座標(右,上,前)
 function toGame(v) {
@@ -663,8 +722,8 @@ function updateInput(dt) {
    ===================================================== */
 function show(id) { document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('on', s.id === id)); }
 function hideAll() { document.querySelectorAll('.screen').forEach((s) => s.classList.remove('on')); }
-function loadBest(id) { try { const v = localStorage.getItem('beatcatch:best:' + id); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
-function saveBest(id, v) { try { localStorage.setItem('beatcatch:best:' + id, JSON.stringify(v)); } catch (e) {} }
+function loadBest(id) { try { const v = localStorage.getItem('beatcatch-land:best:' + id); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function saveBest(id, v) { try { localStorage.setItem('beatcatch-land:best:' + id, JSON.stringify(v)); } catch (e) {} }
 
 function renderSongs() {
   const box = $('#cards');
@@ -693,7 +752,7 @@ function openReady(song) {
   const tag = $('#ready-tag'); tag.textContent = song.level; tag.className = 'tag ' + song.tint;
   $('#ready-title').textContent = song.title;
   $('#ready-text').textContent = S.mode === 'gyro'
-    ? 'いちばん遊びやすい向きにスマホを構えて、下のボタンを押してください。押した向きが「正面」になります。ノーツは、正面を中心にした円の上の9か所に飛んできます。画面の中央の輪をノーツに重ねて受け止めます。'
+    ? 'スマホを横向きに構えて、いちばん遊びやすい向きで下のボタンを押してください。押した向きが「正面」になります。ノーツは、正面を中心にした円の上の9か所に飛んできます。画面の中央の輪をノーツに重ねて受け止めます。'
     : '画面をドラッグして、中央の輪をノーツに重ねて受け止めます。矢印キーでも動かせます。';
   show('screen-ready');
 }
@@ -1130,7 +1189,7 @@ function resize() {
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   view.f = (view.H / 2) / Math.tan(rad(VFOV / 2));
   const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  if (coarse && view.W > view.H && G.state === 'playing') pause();
+  if (coarse && view.W < view.H && G.state === 'playing') pause();
 }
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
