@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#12143a">
 <meta name="mobile-web-app-capable" content="yes">
-<title>BEAT CATCH 横向き版</title>
+<title>BEAT CATCH</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
@@ -46,14 +46,6 @@
     overscroll-behavior: none;
   }
 
-  #test { position: fixed; inset: 0; z-index: 4; display: none; pointer-events: none; }
-  body.testing #test { display: block; }
-  #test-info { position: absolute; left: calc(14px + env(safe-area-inset-left, 0px)); top: 12px; margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(18, 20, 58, .78); color: var(--paper); font: 500 13px/1.6 ui-monospace, Menlo, monospace; white-space: pre; }
-  #test-msg { position: absolute; left: 0; right: 0; bottom: 64px; text-align: center; padding: 0 24px; font-size: 15px; font-weight: 700; text-shadow: 0 2px 0 var(--ink); }
-  .test-btns { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; gap: 14px; justify-content: center; pointer-events: auto; }
-  .rot-only { display: none; }
-  body.rotated .rot-only { display: block; }
-  #root { position: fixed; left: 0; top: 0; width: 100%; height: 100%; }
   #cam { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; z-index: 0; }
   #cam.on { display: block; }
   #stage { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; touch-action: none; }
@@ -153,56 +145,18 @@
   .grid strong { display: block; font: 400 22px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
   .row-btns { display: flex; flex-direction: column; gap: 14px; align-items: center; width: 100%; }
 
-
-  /* ---------- 横向き専用レイアウト ---------- */
-  #hud { padding: calc(8px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px)); }
-  #progress { left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); }
-  .hud-row { margin-top: 10px; }
-  #score { font-size: 24px; }
-  #btn-pause { width: 42px; height: 42px; }
-  #combo { transform-origin: left center; left: calc(14px + env(safe-area-inset-left, 0px)); right: auto; top: 34%; text-align: left; font-size: 40px; }
-  #judge { transform-origin: right center; left: auto; right: calc(20px + env(safe-area-inset-right, 0px)); top: 42%; text-align: right; font-size: 34px; }
-  #milestone { transform-origin: left center; left: calc(14px + env(safe-area-inset-left, 0px)); right: auto; top: 56%; text-align: left; font-size: 28px; }
-  #count { top: 30%; font-size: 78px; }
-
-  .screen { padding: calc(12px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(20px + env(safe-area-inset-left, 0px)); }
-  .inner { gap: 12px; }
-  h2 { font-size: 24px; }
-  .panel h2 { font-size: 22px; }
-  .panel p { font-size: 15px; line-height: 1.6; }
-  .lead { font-size: 16px; }
-  .hint { font-size: 13px; }
-  .btn { font-size: 19px; padding: 10px 28px; }
-  .btn.ghost { font-size: 15px; padding: 8px 20px; }
-
-  .logo { font-size: clamp(44px, 15vh, 88px); margin: 0; }
-  #screen-title .inner { flex-direction: row; width: min(100%, 780px); gap: 36px; }
-  .title-right { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-
-  #screen-select .inner { width: min(100%, 820px); flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; }
-  #screen-select h2, #screen-select .status, #screen-select .cards { flex-basis: 100%; }
-  .cards { flex-direction: row; gap: 12px; }
-  .card { flex: 1; min-width: 0; padding: 10px 12px 12px; }
-  .card .song { font-size: 19px; }
-  .card .meta, .card .best { font-size: 12px; }
-
-  #screen-ready .inner, #screen-pause .inner, #screen-result .inner { width: min(100%, 720px); }
-  #screen-ready .panel, #screen-pause .panel { width: min(100%, 640px); padding: 16px; gap: 10px; }
-  #screen-pause .row-btns { flex-direction: row; flex-wrap: wrap; justify-content: center; }
-
-  #screen-result .panel { display: grid; grid-template-columns: 1fr 1.4fr; column-gap: 20px; row-gap: 8px; align-items: center; width: min(100%, 720px); padding: 16px; }
-  #screen-result .rank { grid-column: 1; grid-row: 1; justify-self: center; width: 96px; height: 96px; font-size: 62px; }
-  #res-score { grid-column: 1; grid-row: 2; font-size: 28px; }
-  #res-new { grid-column: 1; grid-row: 3; justify-self: center; }
-  #screen-result .grid { grid-column: 2; grid-row: 1 / span 2; }
-  #screen-result .row-btns { grid-column: 2; grid-row: 3; flex-direction: row; justify-content: center; }
-
+  #test { position: fixed; inset: 0; z-index: 4; display: none; pointer-events: none; }
+  body.testing #test { display: block; }
+  #test-info { position: absolute; left: 12px; top: calc(12px + env(safe-area-inset-top, 0px)); margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(18, 20, 58, .78); color: var(--paper); font: 500 12px/1.6 ui-monospace, Menlo, monospace; white-space: pre; }
+  #test-msg { position: absolute; left: 0; right: 0; top: calc(142px + env(safe-area-inset-top, 0px)); text-align: center; padding: 0 20px; font-size: 15px; font-weight: 700; text-shadow: 0 2px 0 var(--ink); }
+  .test-btns { position: absolute; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: auto; }
+  .turn { position: fixed; inset: 0; z-index: 9; display: none; place-items: center; background: rgba(18, 20, 58, .96); text-align: center; padding: 24px; font: 400 24px/1.6 var(--font-display); }
+  @media (orientation: landscape) and (pointer: coarse) { body.playing .turn { display: grid; } }
 
   @media (prefers-reduced-motion: reduce) { .logo .row span { animation: none; } .btn, .card { transition: none; } }
 </style>
 </head>
 <body>
-<div id="root">
 <video id="cam" playsinline muted autoplay></video>
 <canvas id="stage"></canvas>
 
@@ -220,10 +174,10 @@
 
 <section class="screen on" id="screen-title">
   <div class="deco" aria-hidden="true">
-    <b style="width:120px;height:120px;background:var(--tomato);top:-34px;left:-30px"></b>
-    <b style="width:84px;height:84px;background:var(--cobalt);top:12%;right:6%"></b>
-    <b style="width:190px;height:190px;background:var(--sun);bottom:-70px;right:-40px"></b>
-    <b style="width:60px;height:60px;background:var(--mint);bottom:-12px;left:6%"></b>
+    <b style="width:150px;height:150px;background:var(--tomato);top:5%;left:-46px"></b>
+    <b style="width:92px;height:92px;background:var(--cobalt);top:15%;right:9%"></b>
+    <b style="width:220px;height:220px;background:var(--sun);bottom:-80px;right:-60px"></b>
+    <b style="width:64px;height:64px;background:var(--mint);bottom:24%;left:7%"></b>
   </div>
   <div class="inner">
     <h1 class="logo" aria-label="BEAT CATCH">
@@ -234,12 +188,9 @@
         <span style="--c:var(--sun);--r:4deg;--i:4">C</span><span style="--c:var(--cobalt);--r:-4deg;--i:5">A</span><span style="--c:var(--tomato);--r:3deg;--i:6">T</span><span style="--c:var(--mint);--r:-5deg;--i:7">C</span><span style="--c:var(--sun);--r:4deg;--i:8">H</span>
       </span>
     </h1>
-    <div class="title-right">
     <p class="lead">スマホを動かして、<br>飛んでくるビートを受け止めよう。</p>
     <button class="btn" id="btn-start">はじめる</button>
     <p class="hint">カメラとモーションセンサーを使います。<br>周りに物や人がない、広い場所で遊んでください。</p>
-    <p class="hint rot-only">画面が縦のまま回らないときは、スマホを横に倒してください。<br>逆さまに見えても、「はじめる」を押すと向きが自動で合います。</p>
-    </div>
   </div>
 </section>
 
@@ -306,7 +257,7 @@
   </div>
 </section>
 
-</div>
+<div class="turn" role="alert">スマホを縦向きにして<br>遊んでください</div>
 
 <script>
 (() => {
@@ -331,7 +282,7 @@ const C = { ink: '#12143a', paper: '#fff6e6', tomato: '#ff5a3c', sun: '#ffc82e',
 const COLS3 = [C.tomato, C.sun, C.cobalt];
 
 // 空間の設定: ノーツは正面 ZHIT メートル先の「パッド」に向かって飛んできます
-const ZHIT = 2.2, ZFAR = 32, NOTE_R = 0.25, VFOV = 56;   // 横向きは画面の高さがせまいので、縦の視野は小さめ
+const ZHIT = 2.2, ZFAR = 32, NOTE_R = 0.25, VFOV = 90;
 const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
@@ -446,9 +397,7 @@ const G = { state: 'title', song: null, run: null, notes: [], score: 0, combo: 0
             counts: { perfect: 0, great: 0, miss: 0 }, particles: [], flash: null, padActive: {}, last: 0, lastBeat: -1 };
 const S = { flip: false, scrAng: null, mode: 'drag', seen: false, alpha: 0, beta: 0, gamma: 0, yaw0: 0, pitch0: 0, fbYaw: 0, fbPitch: 0, listening: false, camera: false };
 const keys = {};
-const view = { W: 360, H: 640, f: 500, rot: 0 };   // rot: 画面が縦のまま固定されているとき、表示を90/270度回す
-const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-let rotDir = 90;
+const view = { W: 360, H: 640, f: 500 };
 let ac = null, master = null, noiseBuf = null, out = null, fxIn = null, wakeLock = null;
 
 /* =====================================================
@@ -630,7 +579,6 @@ function onOri(e) {
   S.alpha = e.alpha; S.beta = e.beta; S.gamma = e.gamma; S.seen = true;
 }
 
-// 画面の向き（縦=0, 横=90 または 270）。センサーの軸はスマホ本体に固定なので、画面の向きぶん回して使います
 // スマホ本体の軸（右=dx, 上=dy, カメラの向き=fwd）を、傾きセンサーの値から求める
 function deviceAxes() {
   const a = rad(S.alpha), b = rad(S.beta), g = rad(S.gamma);
@@ -653,8 +601,7 @@ function inferScreenAngle() {
 }
 function screenAngle() {
   const fl = S.flip ? Math.PI : 0;                            // 上下左右が逆に感じるときの手動切り替え
-  if (S.scrAng != null) return rad(S.scrAng) + fl;                 // 持ち方から決めた向き（遊んでいる間は固定）
-  if (view.rot) return view.rot * Math.PI / 180 + fl;
+  if (S.scrAng != null) return rad(S.scrAng) + fl;            // 持ち方から決めた向き（遊んでいる間は固定）
   const a = (window.screen && screen.orientation && typeof screen.orientation.angle === 'number')
     ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
   return a * Math.PI / 180 + fl;
@@ -741,11 +688,8 @@ let drag = null;
 stage.addEventListener('pointerdown', (e) => { if (S.mode !== 'drag') return; drag = { x: e.clientX, y: e.clientY }; try { stage.setPointerCapture(e.pointerId); } catch (_) {} });
 stage.addEventListener('pointermove', (e) => {
   if (!drag) return;
-  let dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  if (view.rot === 90) { const t = dx; dx = dy; dy = -t; }
-  else if (view.rot === 270) { const t = dx; dx = -dy; dy = t; }
-  S.fbYaw += rad(dx * 0.16);
-  S.fbPitch = clamp(S.fbPitch - rad(dy * 0.16), rad(-50), rad(50));
+  S.fbYaw += rad((e.clientX - drag.x) * 0.16);
+  S.fbPitch = clamp(S.fbPitch - rad((e.clientY - drag.y) * 0.16), rad(-50), rad(50));
   drag.x = e.clientX; drag.y = e.clientY;
 });
 ['pointerup', 'pointercancel'].forEach((n) => stage.addEventListener(n, () => { drag = null; }));
@@ -765,8 +709,8 @@ function updateInput(dt) {
    ===================================================== */
 function show(id) { document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('on', s.id === id)); }
 function hideAll() { document.querySelectorAll('.screen').forEach((s) => s.classList.remove('on')); }
-function loadBest(id) { try { const v = localStorage.getItem('beatcatch-land:best:' + id); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
-function saveBest(id, v) { try { localStorage.setItem('beatcatch-land:best:' + id, JSON.stringify(v)); } catch (e) {} }
+function loadBest(id) { try { const v = localStorage.getItem('beatcatch:best:' + id); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function saveBest(id, v) { try { localStorage.setItem('beatcatch:best:' + id, JSON.stringify(v)); } catch (e) {} }
 
 function renderSongs() {
   const box = $('#cards');
@@ -796,7 +740,7 @@ function openReady(song) {
   const tag = $('#ready-tag'); tag.textContent = song.level; tag.className = 'tag ' + song.tint;
   $('#ready-title').textContent = song.title;
   $('#ready-text').textContent = S.mode === 'gyro'
-    ? 'スマホを横向きに構えて、いちばん遊びやすい向きで下のボタンを押してください。押した向きが「正面」になります。ノーツは、正面を中心にした円の上の9か所に飛んできます。画面の中央の輪をノーツに重ねて受け止めます。'
+    ? 'いちばん遊びやすい向きにスマホを構えて、下のボタンを押してください。押した向きが「正面」になります。ノーツは、正面を中心にした円の上の9か所に飛んできます。画面の中央の輪をノーツに重ねて受け止めます。'
     : '画面をドラッグして、中央の輪をノーツに重ねて受け止めます。矢印キーでも動かせます。';
   show('screen-ready');
 }
@@ -1210,7 +1154,7 @@ function draw(t, dt) {
 /* センサー確認: 円のパッドだけを表示して、動きが正しいか目で確かめる画面 */
 const TEST_LABELS = { 0: '上', 2: '右', 7: '左', 4: '下', 5: '下' };
 let testInfoAt = 0;
-try { S.flip = localStorage.getItem('beatcatch-land:flip') === '1'; } catch (e) {}
+try { S.flip = localStorage.getItem('beatcatch:flip') === '1'; } catch (e) {}
 function drawTest(ts) {
   const { W, H, f } = view, B = camBasis();
   const proj = (P) => { const a = dot(P, B.right), b = dot(P, B.up), z = dot(P, B.fwd); return { x: W / 2 + f * a / z, y: H / 2 - f * b / z, z }; };
@@ -1249,7 +1193,7 @@ function drawTest(ts) {
     const f0 = (v) => (v >= 0 ? '+' : '') + Math.round(v);
     $('#test-info').textContent =
       `操作　　: ${S.mode === 'gyro' ? 'センサー' : 'ドラッグ'}\n` +
-      `画面の向き: ${S.scrAng == null ? '?' : S.scrAng}°  (表示の回転 ${view.rot}°)\n` +
+      `画面の向き: ${S.scrAng == null ? '?' : S.scrAng}°\n` +
       `α ${f0(S.alpha)}  β ${f0(S.beta)}  γ ${f0(S.gamma)}\n` +
       `向き　　: 左右 ${f0(yaw)}°  上下 ${f0(pitch)}°\n` +
       `反転　　: ${S.flip ? 'オン' : 'オフ'}`;
@@ -1290,24 +1234,12 @@ function frame(ts) {
 
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const iw = window.innerWidth, ih = window.innerHeight;
-  const root = $('#root');
-  // スマホの画面が縦のまま（向きのロックなど）でも遊べるように、表示のほうを横向きに回す
-  view.rot = (coarsePointer && iw < ih) ? rotDir : 0;
-  if (view.rot === 90) {
-    view.W = ih; view.H = iw;
-    root.style.cssText = `width:${view.W}px;height:${view.H}px;transform-origin:0 0;transform:translate(${iw}px,0) rotate(90deg)`;
-  } else if (view.rot === 270) {
-    view.W = ih; view.H = iw;
-    root.style.cssText = `width:${view.W}px;height:${view.H}px;transform-origin:0 0;transform:translate(0,${ih}px) rotate(-90deg)`;
-  } else {
-    view.W = iw; view.H = ih;
-    root.style.cssText = '';
-  }
-  document.body.classList.toggle('rotated', !!view.rot);
+  view.W = window.innerWidth; view.H = window.innerHeight;
   stage.width = Math.round(view.W * dpr); stage.height = Math.round(view.H * dpr);
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   view.f = (view.H / 2) / Math.tan(rad(VFOV / 2));
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (coarse && view.W > view.H && G.state === 'playing') pause();
 }
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
@@ -1345,12 +1277,12 @@ $('#btn-haptic').addEventListener('click', (e) => {
   Haptic.tick(true);              // 押した瞬間に試し振動
 });
 $('#btn-test').addEventListener('click', openTest);
+$('#btn-test-back').addEventListener('click', closeTest);
 $('#btn-test-flip').addEventListener('click', () => {
   S.flip = !S.flip;
-  try { localStorage.setItem('beatcatch-land:flip', S.flip ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem('beatcatch:flip', S.flip ? '1' : '0'); } catch (e) {}
   calibrate();
 });
-$('#btn-test-back').addEventListener('click', closeTest);
 $('#btn-test-recenter').addEventListener('click', (e) => {
   calibrate();
   const b = e.currentTarget, old = b.textContent;
@@ -1369,12 +1301,6 @@ $('#btn-quit').addEventListener('click', quit);
 $('#btn-again').addEventListener('click', () => { hideAll(); openReady(G.song); });
 $('#btn-songs').addEventListener('click', () => { G.state = 'select'; renderSongs(); show('screen-select'); });
 
-setInterval(() => {
-  if (!view.rot || S.mode !== 'gyro' || G.state === 'playing') return;
-  const dxz = -Math.cos(rad(S.beta)) * Math.sin(rad(S.gamma));   // スマホの右辺が上を向いている度合い
-  const want = dxz > 0.55 ? 90 : dxz < -0.55 ? 270 : rotDir;
-  if (want !== rotDir) { rotDir = want; resize(); }
-}, 250);
 resize();
 requestAnimationFrame(frame);
 })();
